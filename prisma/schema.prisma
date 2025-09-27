@@ -1,0 +1,174 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  password     String
+  userGroup    String    // "HeadOffice" หรือ "Dealer"
+  role         String
+  firstName    String
+  lastName     String
+  phoneNumber  String
+  profileImage String?   // URL ของรูปประจำตัว
+  dealerId     String?
+  dealer       Dealer?   @relation(fields: [dealerId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model Dealer {
+  id                 String        @id @default(cuid())
+  dealerCode         String        @unique
+  manufacturerNumber String
+  dealerName         String
+  region             String?       // ตัวแทนจำหน่ายภาค
+  address            String
+  phoneNumber        String
+  startDate          DateTime
+  endDate            DateTime?
+  users              User[]
+  sales              Sale[]
+  products           Product[]
+  warranties         Warranty[]
+  rawMaterials       RawMaterial[]
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@map("dealers")
+}
+
+model RawMaterial {
+  id           String                  @id @default(cuid())
+  materialCode String                  @unique
+  materialName String
+  materialType String
+  description  String?
+  unit         String                  // หน่วยของวัตถุดิบ (เช่น กก., ชิ้น, เมตร)
+  supplier     String?                 // ชื่อผู้จัดหา/บริษัท
+  location     String?                 // สถานที่จัดเก็บ
+  expiryDate   DateTime?               // วันหมดอายุ
+  batchNumber  String?                 // หมายเลข Batch/Lot
+  currentStock Int                     @default(0)
+  minStock     Int                     @default(0)
+  dealerId     String
+  dealer       Dealer                  @relation(fields: [dealerId], references: [id])
+  saleItems    SaleItem[]
+  receivings   RawMaterialReceiving[]  // เพิ่ม relation กับ receiving
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  @@map("raw_materials")
+}
+
+model Sale {
+  id              String     @id @default(cuid())
+  saleNumber      String     @unique
+  customerName    String
+  customerPhone   String?
+  customerAddress String?
+  saleDate        DateTime
+  totalAmount     Float      @default(0)
+  status          String     @default("pending")
+  notes           String?
+  dealerId        String
+  dealer          Dealer     @relation(fields: [dealerId], references: [id])
+  items           SaleItem[]
+  products        Product[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("sales")
+}
+
+model SaleItem {
+  id            String      @id @default(cuid())
+  saleId        String
+  sale          Sale        @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id])
+  quantity      Float
+  unitPrice     Float
+  totalPrice    Float
+  createdAt     DateTime    @default(now())
+
+  @@map("sale_items")
+}
+
+model Product {
+  id          String     @id @default(cuid())
+  productCode String     @unique
+  productName String
+  serialNumber String?   @unique
+  category    String
+  description String?
+  dealerId    String
+  dealer      Dealer     @relation(fields: [dealerId], references: [id])
+  saleId      String?
+  sale        Sale?      @relation(fields: [saleId], references: [id])
+  warranties  Warranty[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("products")
+}
+
+model Warranty {
+  id                   String   @id @default(cuid())
+  warrantyNumber       String   @unique
+  productId            String
+  product              Product  @relation(fields: [productId], references: [id])
+  customerName         String
+  customerPhone        String
+  customerEmail        String?
+  customerAddress      String
+  warrantyDate         DateTime
+  expiryDate           DateTime
+  warrantyPeriodMonths Int
+  warrantyTerms        String?
+  dealerId             String
+  dealer               Dealer   @relation(fields: [dealerId], references: [id])
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("warranties")
+}
+
+model RawMaterialReceiving {
+  id                String        @id @default(cuid())
+  receivingNumber   String        @unique // เลขที่ใบนำเข้า (HQ-RCV-YYYYMMDD-XXX)
+  receivingDate     DateTime      // วันที่รับเข้าสินค้า
+  purchaseOrderNo   String?       // เลขที่ใบสั่งซื้อ (optional)
+
+  // ข้อมูลผู้ผลิต/ผู้ขาย
+  supplier          String        // ผู้ผลิต/ผู้ขาย
+
+  // ข้อมูลวัตถุดิบ
+  rawMaterialId     String        // เชื่อมต่อกับตารางวัตถุดิบ
+  rawMaterial       RawMaterial   @relation(fields: [rawMaterialId], references: [id])
+
+  batchNumber       String        // Batch No.
+  receivedQuantity  Float         // ปริมาณที่รับเข้า (kg)
+  storageLocation   String        // สถานที่จัดเก็บในคลังสำนักงานใหญ่
+
+  // ข้อมูลเพิ่มเติม
+  qualityStatus     String        @default("PENDING") // สถานะการตรวจสอบคุณภาพ (PENDING, APPROVED, REJECTED)
+  notes             String?       // หมายเหตุ
+  receivedBy        String        // เจ้าหน้าที่ผู้รับเข้า (Head Office)
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@map("raw_material_receiving")
+}

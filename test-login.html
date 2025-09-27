@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Login</title>
+</head>
+<body>
+    <h1>Test Login Form</h1>
+
+    <form id="loginForm" action="http://localhost:3000/api/auth/callback/credentials" method="POST">
+        <div>
+            <label>Username:</label>
+            <input type="text" name="username" value="admin" required>
+        </div>
+        <div>
+            <label>Password:</label>
+            <input type="password" name="password" value="admin123" required>
+        </div>
+        <div>
+            <input type="hidden" name="csrfToken" id="csrfToken">
+            <button type="button" onclick="testLogin()">Test Login</button>
+        </div>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        async function testLogin() {
+            const result = document.getElementById('result');
+            result.innerHTML = 'Testing login...';
+
+            try {
+                // Get CSRF token first
+                const csrfResponse = await fetch('http://localhost:3000/api/auth/csrf');
+                const csrfData = await csrfResponse.json();
+                console.log('CSRF data:', csrfData);
+
+                // Now test login via signIn
+                const loginResponse = await fetch('http://localhost:3000/api/auth/signin/credentials', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        username: 'admin',
+                        password: 'admin123',
+                        csrfToken: csrfData.csrfToken,
+                        callbackUrl: 'http://localhost:3000/dashboard',
+                        json: 'true'
+                    })
+                });
+
+                console.log('Login response status:', loginResponse.status);
+                console.log('Login response headers:', loginResponse.headers);
+
+                const loginResult = await loginResponse.text();
+                console.log('Login response body:', loginResult);
+
+                result.innerHTML = `<h3>Login Test Result:</h3><pre>${JSON.stringify({
+                    status: loginResponse.status,
+                    statusText: loginResponse.statusText,
+                    body: loginResult
+                }, null, 2)}</pre>`;
+
+            } catch (error) {
+                result.innerHTML = `<h3>Error:</h3><p>${error.message}</p>`;
+                console.error('Login test error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

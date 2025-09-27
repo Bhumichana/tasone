@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install)",
+      "Bash(npm --version)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(findstr:*)",
+      "Bash(npx prisma:*)",
+      "Bash(set DATABASE_URL=file:./dev.db)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(taskkill:*)",
+      "Bash(pkill:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 30 npm run dev)",
+      "Bash(npx next:*)",
+      "Bash(npx tsc:*)",
+      "Bash(netstat:*)",
+      "Read(//g/warranty-system/**)",
+      "Bash(powershell:*)",
+      "Bash(cmd /c:*)",
+      "Bash(timeout:*)",
+      "Bash(npm run:*)",
+      "Bash(dir)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

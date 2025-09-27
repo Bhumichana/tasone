@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>คำแนะนำติดตั้ง Next.js - ระบบใบรับประกัน</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f0f4f8 0%, #dbeafe 100%);
+            color: #1e3a8a;
+            line-height: 1.6;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+        .header {
+            text-align: center;
+            background: white;
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(30, 64, 175, 0.1);
+            margin-bottom: 2rem;
+        }
+        .logo {
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, #1e40af, #1e3a8a);
+            border-radius: 16px; margin: 0 auto 1.5rem;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 32px; font-weight: bold;
+        }
+        h1 {
+            background: linear-gradient(135deg, #1e40af, #1e3a8a);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;
+        }
+        .steps {
+            display: grid; gap: 2rem; margin-top: 2rem;
+        }
+        .step {
+            background: white; padding: 2rem; border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(30, 64, 175, 0.1);
+            border-left: 5px solid #1e40af;
+        }
+        .step-number {
+            background: linear-gradient(135deg, #1e40af, #1e3a8a);
+            color: white; width: 40px; height: 40px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; margin-bottom: 1rem;
+        }
+        .step h3 { color: #1e40af; margin-bottom: 1rem; font-size: 1.3rem; }
+        .code {
+            background: #1e293b; color: #e2e8f0; padding: 1rem;
+            border-radius: 8px; font-family: 'Consolas', monospace;
+            margin: 1rem 0; overflow-x: auto; border: 1px solid #334155;
+        }
+        .warning {
+            background: #fef3c7; border: 2px solid #f59e0b;
+            padding: 1.5rem; border-radius: 12px; margin: 1rem 0;
+        }
+        .warning h4 { color: #d97706; margin-bottom: 0.5rem; }
+        .success {
+            background: #ecfdf5; border: 2px solid #10b981;
+            padding: 1.5rem; border-radius: 12px; margin: 1rem 0;
+        }
+        .success h4 { color: #065f46; margin-bottom: 0.5rem; }
+        .accounts {
+            background: #dbeafe; border: 2px solid #3b82f6;
+            padding: 1.5rem; border-radius: 12px; margin: 1rem 0;
+        }
+        .account-item {
+            background: white; padding: 1rem; margin: 0.5rem 0;
+            border-radius: 8px; border-left: 4px solid #1e40af;
+        }
+        .troubleshoot {
+            background: #fef2f2; border: 2px solid #ef4444;
+            padding: 1.5rem; border-radius: 12px; margin: 1rem 0;
+        }
+        .troubleshoot h4 { color: #dc2626; margin-bottom: 0.5rem; }
+        ul { padding-left: 1.5rem; }
+        li { margin: 0.5rem 0; }
+        .highlight { background: #fef3c7; padding: 0.25rem 0.5rem; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🛡️</div>
+            <h1>คำแนะนำติดตั้ง Next.js</h1>
+            <p>ระบบใบรับประกันคุณภาพผลิตภัณฑ์</p>
+            <div class="success">
+                <h4>✅ สถานะ: Port 3000 พร้อมใช้งาน</h4>
+                <p>โครงสร้างโปรเจกต์ Phase 1 เสร็จสมบูรณ์แล้ว</p>
+            </div>
+        </div>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>เปิด Terminal/Command Prompt</h3>
+                <p>เปิด Terminal ใหม่และไปยังโฟลเดอร์โปรเจกต์:</p>
+                <div class="code">cd G:\vibeapps\warranty-app</div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>ติดตั้ง Dependencies</h3>
+                <p>ลองคำสั่งเหล่านี้ตามลำดับ (หากคำสั่งใดไม่ได้ให้ข้ามไปคำสั่งถัดไป):</p>
+
+                <h4>🥇 ลำดับที่ 1 (แนะนำ):</h4>
+                <div class="code">npm install --legacy-peer-deps</div>
+
+                <h4>🥈 ลำดับที่ 2 (หากลำดับที่ 1 ไม่ได้):</h4>
+                <div class="code">npm cache clean --force<br>npm install --force</div>
+
+                <h4>🥉 ลำดับที่ 3 (ติดตั้งทีละตัว):</h4>
+                <div class="code">npm install next@15.5.3 react@19.1.0 react-dom@19.1.0<br>npm install prisma@5.22.0 @prisma/client@5.22.0<br>npm install next-auth@4.24.10 @next-auth/prisma-adapter@1.0.7<br>npm install bcryptjs@2.4.3 @types/bcryptjs@2.4.6<br>npm install lucide-react clsx tailwind-merge class-variance-authority<br>npm install @vercel/blob tsx --save-dev</div>
+
+                <div class="warning">
+                    <h4>⚠️ หมายเหตุ:</h4>
+                    <p>การติดตั้งอาจใช้เวลานาน (5-15 นาที) ขึ้นอยู่กับความเร็วอินเทอร์เน็ต</p>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>ตั้งค่า Database (Prisma)</h3>
+                <p>รันคำสั่งเหล่านี้ตามลำดับ:</p>
+                <div class="code">npx prisma generate<br>npx prisma db push<br>npm run db:seed</div>
+
+                <div class="success">
+                    <h4>✅ คาดหวัง:</h4>
+                    <ul>
+                        <li>สร้าง Prisma client สำเร็จ</li>
+                        <li>สร้างตาราง database (SQLite) สำเร็จ</li>
+                        <li>เพิ่มข้อมูลตัวอย่างสำเร็จ</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">4</div>
+                <h3>รัน Next.js Development Server</h3>
+                <div class="code">npm run dev</div>
+
+                <div class="success">
+                    <h4>✅ คาดหวัง:</h4>
+                    <div class="code" style="background: #065f46; color: #ecfdf5;">▲ Next.js 15.5.3<br>- Local:        http://localhost:3000<br>- Environments: .env.local<br><br>✓ Starting...<br>✓ Ready in 2.1s</div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">5</div>
+                <h3>ทดสอบเว็บไซต์</h3>
+                <p>เปิดเบราว์เซอร์ไปที่: <span class="highlight">http://localhost:3000</span></p>
+
+                <div class="success">
+                    <h4>✅ คาดหวัง:</h4>
+                    <ul>
+                        <li>หน้าแรก → redirect ไป <code>/login</code></li>
+                        <li>เห็นหน้า Login สีธีม Navy Blue</li>
+                        <li>มีช่องกรอก Username/Password</li>
+                        <li>มีข้อมูลบัญชีทดสอบด้านล่าง</li>
+                    </ul>
+                </div>
+
+                <div class="accounts">
+                    <h4>🔐 บัญชีสำหรับทดสอบ:</h4>
+                    <div class="account-item">
+                        <strong>Admin Account:</strong><br>
+                        Username: <code>admin</code><br>
+                        Password: <code>admin123</code>
+                    </div>
+                    <div class="account-item">
+                        <strong>Dealer Account:</strong><br>
+                        Username: <code>dealer1</code><br>
+                        Password: <code>dealer123</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="step">
+                <div class="step-number">6</div>
+                <h3>ทดสอบ Login</h3>
+                <p>ลอง Login ด้วยบัญชี Admin หรือ Dealer:</p>
+
+                <div class="success">
+                    <h4>✅ หลัง Login สำเร็จ:</h4>
+                    <ul>
+                        <li>Redirect ไปหน้า Dashboard</li>
+                        <li>แสดงชื่อผู้ใช้และ Role</li>
+                        <li>มีปุ่ม "ออกจากระบบ"</li>
+                        <li>แสดงเมนู Features ตาม Role</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="troubleshoot">
+            <h4>🔧 แก้ปัญหาเบื้องต้น</h4>
+            <ul>
+                <li><strong>npm install ไม่ได้:</strong> ลอง <code>npm cache clean --force</code></li>
+                <li><strong>Port 3000 ถูกใช้:</strong> ลอง <code>npm run dev -- -p 3001</code></li>
+                <li><strong>Prisma error:</strong> ลอง <code>npx prisma generate --force</code></li>
+                <li><strong>Database error:</strong> ลบไฟล์ <code>dev.db</code> แล้วรัน <code>npx prisma db push</code> ใหม่</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin: 3rem 0; padding: 2rem; background: white; border-radius: 16px;">
+            <h3 style="color: #1e40af; margin-bottom: 1rem;">🎯 เป้าหมาย</h3>
+            <p>เมื่อทำตามขั้นตอนครบแล้ว คุณจะได้ระบบใบรับประกันที่:</p>
+            <ul style="text-align: left; max-width: 600px; margin: 1rem auto;">
+                <li>✅ Login/Logout ทำงานได้</li>
+                <li>✅ แยก Role Admin/Dealer</li>
+                <li>✅ Database พร้อมข้อมูลตัวอย่าง</li>
+                <li>✅ UI สี Navy Blue สวยงาม</li>
+                <li>✅ พร้อมพัฒนา Features ต่อ</li>
+            </ul>
+
+            <div style="margin-top: 2rem; padding: 1rem; background: #f0f4f8; border-radius: 8px;">
+                <p><strong>📞 หากมีปัญหา:</strong> ส่ง screenshot ข้อผิดพลาดมาให้ดู</p>
+                <p><em>สร้างด้วย ❤️ โดย Claude Code</em></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

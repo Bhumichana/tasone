@@ -1,0 +1,8 @@
+const config = {
+  plugins: {
+    // tailwindcss: {}, // Temporarily disabled due to CSS compilation issues
+    // autoprefixer: {}, // Temporarily disabled due to CSS compilation issues
+  },
+};
+
+export default config;
