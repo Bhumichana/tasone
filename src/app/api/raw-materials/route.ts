@@ -17,19 +17,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
-    const dealerId = searchParams.get('dealerId')
 
     const where: any = {}
-
-    // หากเป็น Dealer ให้แสดงเฉพาะวัตถุดิบของตัวเอง
-    if (session.user.userGroup === 'Dealer' && session.user.dealerId) {
-      where.dealerId = session.user.dealerId
-    }
-
-    // หาก HeadOffice และระบุ dealerId
-    if (dealerId && session.user.userGroup === 'HeadOffice') {
-      where.dealerId = dealerId
-    }
 
     // ค้นหาตามชื่อหรือรหัส
     if (search) {
@@ -42,20 +31,6 @@ export async function GET(request: NextRequest) {
 
     const rawMaterials = await prisma.rawMaterial.findMany({
       where,
-      include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        },
-        _count: {
-          select: {
-            saleItems: true
-          }
-        }
-      },
       orderBy: {
         createdAt: 'desc'
       }
@@ -94,7 +69,6 @@ export async function POST(request: NextRequest) {
       location,
       expiryDate,
       batchNumber,
-      dealerId,
       minStock,
       currentStock
     } = body
@@ -111,17 +85,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ตรวจสอบว่า dealer มีอยู่หรือไม่
-    const dealer = await prisma.dealer.findUnique({
-      where: { id: dealerId }
-    })
-
-    if (!dealer) {
-      return NextResponse.json(
-        { error: 'Dealer not found' },
-        { status: 400 }
-      )
-    }
 
     // สร้างวัตถุดิบใหม่
     const newMaterial = await prisma.rawMaterial.create({
@@ -135,23 +98,8 @@ export async function POST(request: NextRequest) {
         location,
         expiryDate: expiryDate ? new Date(expiryDate) : null,
         batchNumber,
-        dealerId,
         minStock: parseInt(minStock) || 0,
         currentStock: parseInt(currentStock) || 0
-      },
-      include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        },
-        _count: {
-          select: {
-            saleItems: true
-          }
-        }
       }
     })
 

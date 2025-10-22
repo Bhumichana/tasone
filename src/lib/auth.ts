@@ -2,7 +2,7 @@ import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import * as bcrypt from 'bcryptjs'
-import { prisma } from './prisma'
+import { prisma } from './db'
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -57,6 +57,12 @@ export const authOptions: NextAuthOptions = {
             return null
           }
 
+          // เช็คว่า user ถูกอนุมัติแล้วหรือยัง
+          if (!user.isActive) {
+            console.log('❌ User not activated - waiting for admin approval');
+            return null; // Return null เพื่อให้ NextAuth ส่ง error กลับไป
+          }
+
           const authResult = {
             id: user.id,
             username: user.username,
@@ -67,6 +73,7 @@ export const authOptions: NextAuthOptions = {
             phoneNumber: user.phoneNumber,
             dealerId: user.dealerId ?? undefined,
             dealerName: user.dealer?.dealerName || null,
+            avatarUrl: user.profileImage || null,
           };
 
           console.log('✅ Authorization successful:', {
@@ -98,20 +105,22 @@ export const authOptions: NextAuthOptions = {
         token.dealerId = user.dealerId
         token.dealerName = user.dealerName
         token.username = user.username
+        token.avatarUrl = user.avatarUrl
       }
       return token
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.sub!
-        session.user.username = token.username!
-        session.user.userGroup = token.userGroup!
-        session.user.role = token.role!
-        session.user.firstName = token.firstName!
-        session.user.lastName = token.lastName!
-        session.user.phoneNumber = token.phoneNumber!
-        session.user.dealerId = token.dealerId
-        session.user.dealerName = token.dealerName
+        session.user.username = token.username as string
+        session.user.userGroup = token.userGroup as string
+        session.user.role = token.role as string
+        session.user.firstName = token.firstName as string
+        session.user.lastName = token.lastName as string
+        session.user.phoneNumber = token.phoneNumber as string
+        session.user.dealerId = token.dealerId as string | undefined
+        session.user.dealerName = token.dealerName as string | null
+        session.user.avatarUrl = token.avatarUrl as string | null
       }
       return session
     }

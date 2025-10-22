@@ -67,6 +67,8 @@ export async function POST(request: NextRequest) {
       firstName,
       lastName,
       phoneNumber,
+      email,
+      lineId,
       dealerId,
       profileImage
     } = body
@@ -96,6 +98,8 @@ export async function POST(request: NextRequest) {
         firstName,
         lastName,
         phoneNumber,
+        email: email || null,
+        lineId: lineId || null,
         dealerId: userGroup === 'Dealer' ? dealerId : null,
         profileImage: profileImage || null
       },

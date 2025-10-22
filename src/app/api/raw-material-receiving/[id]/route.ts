@@ -208,9 +208,16 @@ export async function DELETE(
       )
     }
 
-    // ดึงข้อมูลการรับเข้า
+    // ดึงข้อมูลการรับเข้าพร้อม Batch
     const receiving = await prisma.rawMaterialReceiving.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        batches: {
+          include: {
+            deliveryItems: true // เช็คว่า Batch ถูกใช้ส่งมอบหรือยัง
+          }
+        }
+      }
     })
 
     if (!receiving) {
@@ -220,25 +227,45 @@ export async function DELETE(
       )
     }
 
-    // ลบการรับเข้าและปรับสต็อก
-    await prisma.$transaction([
-      // ถ้าสถานะเป็น APPROVED ให้ลบจำนวนออกจากสต็อก
-      ...(receiving.qualityStatus === 'APPROVED' ? [
-        prisma.rawMaterial.update({
+    // เช็คว่า Batch ถูกใช้ส่งมอบแล้วหรือยัง
+    const usedBatches = receiving.batches.filter(batch => batch.deliveryItems.length > 0)
+    if (usedBatches.length > 0) {
+      return NextResponse.json(
+        { error: `ไม่สามารถลบได้ เพราะมี Batch ที่ถูกใช้ส่งมอบไปแล้ว (${usedBatches.map(b => b.batchNumber).join(', ')})` },
+        { status: 400 }
+      )
+    }
+
+    // ลบการรับเข้า, Batch และปรับสต็อก
+    await prisma.$transaction(async (tx) => {
+      // 1. คำนวณสต็อกที่ต้องคืน (เฉพาะ Batch ที่ยังเหลือสต็อก)
+      let stockToReturn = 0
+      for (const batch of receiving.batches) {
+        stockToReturn += batch.currentStock // เฉพาะที่เหลือใน Batch
+      }
+
+      // 2. ลบ Batch ที่เกี่ยวข้อง
+      await tx.rawMaterialBatch.deleteMany({
+        where: { receivingId: id }
+      })
+
+      // 3. คืนสต็อกที่ยังเหลือ (ถ้ามี)
+      if (receiving.qualityStatus === 'APPROVED' && stockToReturn > 0) {
+        await tx.rawMaterial.update({
           where: { id: receiving.rawMaterialId },
           data: {
             currentStock: {
-              decrement: receiving.receivedQuantity
+              decrement: stockToReturn
             }
           }
         })
-      ] : []),
+      }
 
-      // ลบการรับเข้า
-      prisma.rawMaterialReceiving.delete({
+      // 4. ลบการรับเข้า
+      await tx.rawMaterialReceiving.delete({
         where: { id }
       })
-    ])
+    })
 
     return NextResponse.json({
       message: 'Receiving deleted successfully'

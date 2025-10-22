@@ -3,14 +3,16 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Building2, Search, Users, Package, FileText } from 'lucide-react'
+import { Plus, Edit, Trash2, Building2, Search, Users, FileText } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface Dealer {
   id: string
   dealerCode: string
   manufacturerNumber: string
   dealerName: string
+  type: string
   region?: string
   address: string
   phoneNumber: string
@@ -24,8 +26,6 @@ interface Dealer {
   }[]
   _count: {
     users: number
-    sales: number
-    products: number
     warranties: number
   }
   createdAt: string
@@ -43,6 +43,7 @@ export default function DealersPage() {
     dealerCode: '',
     manufacturerNumber: '',
     dealerName: '',
+    type: 'ตัวแทนจำหน่าย',
     region: '',
     address: '',
     phoneNumber: '',
@@ -113,6 +114,7 @@ export default function DealersPage() {
       dealerCode: dealer.dealerCode,
       manufacturerNumber: dealer.manufacturerNumber,
       dealerName: dealer.dealerName,
+      type: dealer.type,
       region: dealer.region || '',
       address: dealer.address,
       phoneNumber: dealer.phoneNumber,
@@ -147,6 +149,7 @@ export default function DealersPage() {
       dealerCode: '',
       manufacturerNumber: '',
       dealerName: '',
+      type: 'ตัวแทนจำหน่าย',
       region: '',
       address: '',
       phoneNumber: '',
@@ -219,6 +222,13 @@ export default function DealersPage() {
                       <div className="flex flex-col text-sm text-gray-500 space-y-1">
                         <span>รหัส: {dealer.dealerCode}</span>
                         <span>ผู้ผลิต: {dealer.manufacturerNumber}</span>
+                        <span className={`font-medium ${
+                          dealer.type === 'สำนักงานใหญ่'
+                            ? 'text-blue-600'
+                            : 'text-green-600'
+                        }`}>
+                          ประเภท: {dealer.type}
+                        </span>
                         {dealer.region && <span>ภาค: {dealer.region}</span>}
                       </div>
                     </div>
@@ -253,22 +263,14 @@ export default function DealersPage() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
                     <div className="flex items-center text-sm text-gray-600">
                       <Users className="h-4 w-4 mr-1" />
                       <span>{dealer._count.users} ผู้ใช้</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
-                      <Package className="h-4 w-4 mr-1" />
-                      <span>{dealer._count.products} สินค้า</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
                       <FileText className="h-4 w-4 mr-1" />
                       <span>{dealer._count.warranties} ใบรับประกัน</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Building2 className="h-4 w-4 mr-1" />
-                      <span>{dealer._count.sales} การขาย</span>
                     </div>
                   </div>
 
@@ -337,6 +339,19 @@ export default function DealersPage() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-700">ประเภท</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  required
+                >
+                  <option value="ตัวแทนจำหน่าย">ตัวแทนจำหน่าย</option>
+                  <option value="สำนักงานใหญ่">สำนักงานใหญ่</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700">ตัวแทนจำหน่ายภาค</label>
                 <select
                   value={formData.region}
@@ -378,21 +393,18 @@ export default function DealersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่เริ่มเป็นตัวแทน</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    required
+                    onChange={(date) => setFormData({ ...formData, startDate: date })}
+                    placeholder="เลือกวันที่เริ่มต้น"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่สิ้นสุด (ถ้ามี)</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    onChange={(date) => setFormData({ ...formData, endDate: date })}
+                    placeholder="เลือกวันที่สิ้นสุด"
                   />
                 </div>
               </div>

@@ -3,19 +3,21 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Package, 
-  Search, 
-  Building2, 
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Package,
+  Search,
   FileText,
   Eye,
   Tag,
-  Hash
+  Hash,
+  ChefHat
 } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import RecipeModal from '@/components/recipe/RecipeModal'
+import RecipeDetailModal from '@/components/recipe/RecipeDetailModal'
 
 interface Product {
   id: string
@@ -24,58 +26,56 @@ interface Product {
   serialNumber?: string
   category: string
   description?: string
-  dealerId: string
-  dealer: {
-    id: string
-    dealerCode: string
-    dealerName: string
-  }
-  sale?: {
-    id: string
-    saleNumber: string
-    customerName: string
-  }
+  warrantyTerms?: string
+  thickness?: number
   warranties: {
     id: string
     warrantyNumber: string
     warrantyDate: string
     expiryDate: string
   }[]
+  recipe?: {
+    id: string
+    recipeName: string
+    version: string
+    isActive: boolean
+    _count: {
+      items: number
+    }
+  }
   createdAt: string
-}
-
-interface Dealer {
-  id: string
-  dealerCode: string
-  dealerName: string
 }
 
 export default function ProductsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
-  const [dealers, setDealers] = useState<Dealer[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedDealer, setSelectedDealer] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [showRecipeModal, setShowRecipeModal] = useState(false)
+  const [showRecipeDetailModal, setShowRecipeDetailModal] = useState(false)
+  const [recipeProductId, setRecipeProductId] = useState<string>('')
+  const [refreshKey, setRefreshKey] = useState(0)
   const [formData, setFormData] = useState({
     productCode: '',
     productName: '',
     serialNumber: '',
     category: '',
     description: '',
-    dealerId: ''
+    warrantyTerms: '',
+    thickness: ''
   })
 
   const categories = [
-    'Electronics', 'Hardware', 'Software', 'Components', 
-    'Accessories', 'Tools', 'Materials', 'Other'
+    'TECO', 'RIGID'
   ]
+
+  const thicknessOptions = [3, 5, 10, 20, 25, 50]
 
   useEffect(() => {
     if (status === 'loading') return
@@ -85,10 +85,7 @@ export default function ProductsPage() {
     }
 
     fetchProducts()
-    if (session.user.userGroup === 'HeadOffice') {
-      fetchDealers()
-    }
-  }, [session, status, router, searchTerm, selectedDealer, selectedCategory])
+  }, [session, status, router, searchTerm, selectedCategory])
 
   const fetchProducts = async () => {
     try {
@@ -96,16 +93,22 @@ export default function ProductsPage() {
       const params = new URLSearchParams()
 
       if (searchTerm) params.append('search', searchTerm)
-      if (selectedDealer && session?.user.userGroup === 'HeadOffice') {
-        params.append('dealerId', selectedDealer)
-      }
       if (selectedCategory) params.append('category', selectedCategory)
+
+      // เพิ่ม timestamp เพื่อบังคับให้ fetch ใหม่ทุกครั้ง
+      params.append('_t', Date.now().toString())
 
       if (params.toString()) {
         url += `?${params.toString()}`
       }
 
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      })
       const data = await response.json()
       if (response.ok) {
         setProducts(data.products)
@@ -117,18 +120,6 @@ export default function ProductsPage() {
     }
   }
 
-  const fetchDealers = async () => {
-    try {
-      const response = await fetch('/api/dealers')
-      const data = await response.json()
-      if (response.ok) {
-        setDealers(data.dealers)
-      }
-    } catch (error) {
-      console.error('Error fetching dealers:', error)
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -137,18 +128,12 @@ export default function ProductsPage() {
       const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products'
       const method = editingProduct ? 'PUT' : 'POST'
 
-      // ถ้าเป็น Dealer ให้ใช้ dealerId ของตัวเอง
-      const submitData = {
-        ...formData,
-        dealerId: session?.user.userGroup === 'Dealer' ? session.user.dealerId : formData.dealerId
-      }
-
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(submitData),
+        body: JSON.stringify(formData),
       })
 
       if (response.ok) {
@@ -176,7 +161,8 @@ export default function ProductsPage() {
       serialNumber: product.serialNumber || '',
       category: product.category,
       description: product.description || '',
-      dealerId: product.dealerId
+      warrantyTerms: product.warrantyTerms || '',
+      thickness: product.thickness ? String(product.thickness) : ''
     })
     setShowAddForm(true)
   }
@@ -208,8 +194,36 @@ export default function ProductsPage() {
       serialNumber: '',
       category: '',
       description: '',
-      dealerId: session?.user.userGroup === 'Dealer' ? session.user.dealerId || '' : ''
+      warrantyTerms: '',
+      thickness: ''
     })
+  }
+
+  const handleOpenRecipeModal = (productId: string, hasRecipe: boolean) => {
+    console.log('Opening recipe modal for productId:', productId, 'hasRecipe:', hasRecipe)
+    setRecipeProductId(productId)
+    if (hasRecipe) {
+      setShowRecipeDetailModal(true)
+    } else {
+      setShowRecipeModal(true)
+    }
+  }
+
+  const handleEditRecipe = () => {
+    setShowRecipeDetailModal(false)
+    setShowRecipeModal(true)
+  }
+
+  const handleRecipeSaved = () => {
+    setRefreshKey(prev => prev + 1) // เพิ่ม key เพื่อบังคับ re-render
+    router.refresh() // Force refresh Next.js cache
+    fetchProducts() // รีโหลดข้อมูลสินค้า
+  }
+
+  const handleRecipeDeleted = () => {
+    setRefreshKey(prev => prev + 1) // เพิ่ม key เพื่อบังคับ re-render
+    router.refresh() // Force refresh Next.js cache
+    fetchProducts() // รีโหลดข้อมูลสินค้า
   }
 
   const filteredProducts = products.filter(product =>
@@ -239,22 +253,24 @@ export default function ProductsPage() {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center">
               <Package className="h-6 w-6 text-navy-900 mr-3" />
-              <h1 className="text-2xl font-bold text-navy-900">จัดการสินค้า</h1>
+              <h1 className="text-2xl font-bold text-navy-900">สินค้า(BOM)</h1>
             </div>
-            <button
-              onClick={() => {
-                resetForm()
-                setShowAddForm(true)
-              }}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-navy-900 hover:bg-navy-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              เพิ่มสินค้าใหม่
-            </button>
+            {session?.user.userGroup === 'HeadOffice' && (
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowAddForm(true)
+                }}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-navy-900 hover:bg-navy-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                เพิ่มสินค้าใหม่
+              </button>
+            )}
           </div>
 
           {/* Filters */}
-          <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -279,21 +295,6 @@ export default function ProductsPage() {
               ))}
             </select>
 
-            {session?.user.userGroup === 'HeadOffice' && (
-              <select
-                value={selectedDealer}
-                onChange={(e) => setSelectedDealer(e.target.value)}
-                className="py-2 px-3 border border-gray-300 rounded-md"
-              >
-                <option value="">ทุกตัวแทนจำหน่าย</option>
-                {dealers.map((dealer) => (
-                  <option key={dealer.id} value={dealer.id}>
-                    {dealer.dealerName} ({dealer.dealerCode})
-                  </option>
-                ))}
-              </select>
-            )}
-
             <div className="text-sm text-gray-500 flex items-center">
               <Package className="h-4 w-4 mr-1" />
               รวม {filteredProducts.length} รายการ
@@ -303,7 +304,7 @@ export default function ProductsPage() {
           {/* Products Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProducts.map((product) => (
-              <div key={product.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow border">
+              <div key={`${product.id}-${refreshKey}`} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow border">
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">
@@ -330,21 +331,28 @@ export default function ProductsPage() {
                           setShowDetailModal(true)
                         }}
                         className="text-blue-600 hover:text-blue-900 p-1"
+                        title="ดูรายละเอียด"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleEdit(product)}
-                        className="text-indigo-600 hover:text-indigo-900 p-1"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product.id)}
-                        className="text-red-600 hover:text-red-900 p-1"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {session?.user.userGroup === 'HeadOffice' && (
+                        <>
+                          <button
+                            onClick={() => handleEdit(product)}
+                            className="text-indigo-600 hover:text-indigo-900 p-1"
+                            title="แก้ไข"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(product.id)}
+                            className="text-red-600 hover:text-red-900 p-1"
+                            title="ลบ"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -360,23 +368,35 @@ export default function ProductsPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-1 gap-4 pt-4 border-t border-gray-200">
                     <div className="flex items-center text-sm text-gray-600">
                       <FileText className="h-4 w-4 mr-1" />
                       <span>{product.warranties.length} ใบรับประกัน</span>
                     </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Building2 className="h-4 w-4 mr-1" />
-                      <span className="truncate">{product.dealer.dealerName}</span>
-                    </div>
                   </div>
 
-                  {product.sale && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
-                      <div>ขายแล้ว: {product.sale.saleNumber}</div>
-                      <div>ลูกค้า: {product.sale.customerName}</div>
-                    </div>
-                  )}
+                  {/* สูตรการผลิต */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    {product.recipe ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center text-sm text-green-600">
+                          <ChefHat className="h-4 w-4 mr-1" />
+                          <span>{product.recipe.recipeName}</span>
+                          <span className="ml-2 text-xs text-gray-500">
+                            ({product.recipe._count.items} รายการ)
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          v{product.recipe.version}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-sm text-gray-400">
+                        <ChefHat className="h-4 w-4 mr-1" />
+                        <span>ยังไม่มีสูตรการผลิต</span>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
                     <div>สร้างเมื่อ: {new Date(product.createdAt).toLocaleDateString('th-TH')}</div>
@@ -458,7 +478,24 @@ export default function ProductsPage() {
                   </select>
                 </div>
 
-                {session?.user.userGroup === 'HeadOffice' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">ความหนา (mm.)</label>
+                  <select
+                    value={formData.thickness}
+                    onChange={(e) => setFormData({ ...formData, thickness: e.target.value })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    <option value="">เลือกความหนา</option>
+                    {thicknessOptions.map((thickness) => (
+                      <option key={thickness} value={thickness}>
+                        {thickness} mm
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* ปิดช่องเลือกตัวแทนจำหน่าย */}
+                {/* {session?.user.userGroup === 'HeadOffice' && (
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700">ตัวแทนจำหน่าย</label>
                     <select
@@ -475,7 +512,7 @@ export default function ProductsPage() {
                       ))}
                     </select>
                   </div>
-                )}
+                )} */}
               </div>
 
               <div>
@@ -487,6 +524,29 @@ export default function ProductsPage() {
                   rows={4}
                   placeholder="รายละเอียดสินค้า (ไม่บังคับ)"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  เงื่อนไขการรับประกัน
+                </label>
+                <div className="mb-2 text-xs text-gray-500 bg-blue-50 border border-blue-200 rounded-md p-2">
+                  💡 <strong>คำแนะนำ:</strong> กด <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">Enter</kbd> เพื่อขึ้นบรรทัดใหม่ |
+                  กด <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">Enter 2 ครั้ง</kbd> เพื่อเว้นย่อหน้า
+                </div>
+                <textarea
+                  value={formData.warrantyTerms}
+                  onChange={(e) => setFormData({ ...formData, warrantyTerms: e.target.value })}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-3 font-thai leading-relaxed focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={8}
+                  placeholder="ตัวอย่าง:&#10;1. รับประกันความเสียหายจากการผลิต 5 ปี&#10;2. ไม่รับประกันความเสียหายจาก:&#10;   - การใช้งานผิดวิธี&#10;   - ภัยธรรมชาติ&#10;   - อุบัติเหตุที่ไม่คาดคิด"
+                />
+                <div className="mt-1 flex justify-between text-xs text-gray-500">
+                  <span>
+                    {formData.warrantyTerms.length} ตัวอักษร | {formData.warrantyTerms.split('\n').length} บรรทัด
+                  </span>
+                  <span className="text-gray-400">ไม่บังคับ</span>
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
@@ -549,11 +609,12 @@ export default function ProductsPage() {
                   <label className="block text-sm font-medium text-gray-500">หมวดหมู่</label>
                   <p className="text-lg">{selectedProduct.category}</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">ตัวแทนจำหน่าย</label>
-                  <p className="text-lg">{selectedProduct.dealer.dealerName}</p>
-                  <p className="text-sm text-gray-600">{selectedProduct.dealer.dealerCode}</p>
-                </div>
+                {selectedProduct.thickness && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">ความหนา</label>
+                    <p className="text-lg">{selectedProduct.thickness} mm</p>
+                  </div>
+                )}
               </div>
 
               {selectedProduct.description && (
@@ -563,12 +624,64 @@ export default function ProductsPage() {
                 </div>
               )}
 
-              {selectedProduct.sale && (
+              {/* สูตรการผลิต */}
+              {selectedProduct.recipe && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500">ข้อมูลการขาย</label>
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <p><strong>หมายเลขการขาย:</strong> {selectedProduct.sale.saleNumber}</p>
-                    <p><strong>ลูกค้า:</strong> {selectedProduct.sale.customerName}</p>
+                  <h4 className="text-md font-medium text-gray-900 mb-3">สูตรการผลิต</h4>
+                  <div className="bg-green-50 p-4 rounded-md">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-medium text-green-800">{selectedProduct.recipe.recipeName}</p>
+                        <p className="text-sm text-green-600">
+                          จำนวนวัตถุดิบ: {selectedProduct.recipe._count.items} รายการ
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                          เวอร์ชัน {selectedProduct.recipe.version}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex space-x-2">
+                      <button
+                        onClick={() => handleOpenRecipeModal(selectedProduct.id, true)}
+                        className="text-sm text-green-600 hover:text-green-800 underline"
+                      >
+                        ดูรายละเอียดสูตร
+                      </button>
+                      {(session?.user.role === 'Admin' || session?.user.role === 'Manager') && (
+                        <button
+                          onClick={() => {
+                            setRecipeProductId(selectedProduct.id)
+                            setShowRecipeModal(true)
+                          }}
+                          className="text-sm text-blue-600 hover:text-blue-800 underline"
+                        >
+                          แก้ไขสูตร
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!selectedProduct.recipe && (
+                <div>
+                  <h4 className="text-md font-medium text-gray-900 mb-3">สูตรการผลิต</h4>
+                  <div className="bg-gray-50 p-4 rounded-md text-center">
+                    <ChefHat className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500 mb-3">ยังไม่มีสูตรการผลิตสำหรับสินค้านี้</p>
+                    {(session?.user.role === 'Admin' || session?.user.role === 'Manager') && (
+                      <button
+                        onClick={() => {
+                          setRecipeProductId(selectedProduct.id)
+                          setShowRecipeModal(true)
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 underline"
+                      >
+                        เพิ่มสูตรการผลิต
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -589,8 +702,8 @@ export default function ProductsPage() {
                           </div>
                           <div className="text-right">
                             <p className={`text-sm font-medium ${
-                              new Date(warranty.expiryDate) > new Date() 
-                                ? 'text-green-600' 
+                              new Date(warranty.expiryDate) > new Date()
+                                ? 'text-green-600'
                                 : 'text-red-600'
                             }`}>
                               {new Date(warranty.expiryDate) > new Date() ? 'ยังใช้ได้' : 'หมดอายุ'}
@@ -613,6 +726,40 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Recipe Modals */}
+      <RecipeModal
+        isOpen={showRecipeModal}
+        onClose={() => {
+          setShowRecipeModal(false)
+          setRecipeProductId('')
+          router.refresh()
+          fetchProducts()
+        }}
+        productId={recipeProductId}
+        productName={products.find(p => p.id === recipeProductId)?.productName || ''}
+        existingRecipe={products.find(p => p.id === recipeProductId)?.recipe ? {
+          id: products.find(p => p.id === recipeProductId)?.recipe?.id || '',
+          recipeName: products.find(p => p.id === recipeProductId)?.recipe?.recipeName || '',
+          version: products.find(p => p.id === recipeProductId)?.recipe?.version || '',
+          isActive: products.find(p => p.id === recipeProductId)?.recipe?.isActive || true,
+          items: []
+        } : null}
+        onSave={handleRecipeSaved}
+      />
+
+      <RecipeDetailModal
+        isOpen={showRecipeDetailModal}
+        onClose={() => {
+          setShowRecipeDetailModal(false)
+          setRecipeProductId('')
+          router.refresh()
+          fetchProducts()
+        }}
+        productId={recipeProductId}
+        onEdit={handleEditRecipe}
+        onDelete={handleRecipeDeleted}
+      />
     </DashboardLayout>
   )
 }

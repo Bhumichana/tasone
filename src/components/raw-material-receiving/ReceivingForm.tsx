@@ -26,7 +26,6 @@ interface ReceivingFormData {
   receivedQuantity: string
   storageLocation: string
   notes: string
-  qualityStatus: string
 }
 
 interface ReceivingFormProps {
@@ -39,20 +38,8 @@ interface ReceivingFormProps {
 
 // ตัวเลือกสถานที่เก็บในคลังสำนักงานใหญ่
 const STORAGE_LOCATIONS = [
-  'คลัง A - ชั้นที่ 1',
-  'คลัง A - ชั้นที่ 2',
-  'คลัง B - ชั้นที่ 1',
-  'คลัง B - ชั้นที่ 2',
-  'คลังสารเคมี - ห้องเย็น',
-  'คลังสารเคมี - ห้องธรรมดา',
-  'โซนกักกัน - รอตรวจสอบ',
-  'โซนแยกประเภท'
-]
-
-const QUALITY_STATUS_OPTIONS = [
-  { value: 'PENDING', label: 'รอตรวจสอบ', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'APPROVED', label: 'อนุมัติ', color: 'bg-green-100 text-green-800' },
-  { value: 'REJECTED', label: 'ปฏิเสธ', color: 'bg-red-100 text-red-800' }
+  'HO-PATHUM-1',
+  'HO-PATHUM-2'
 ]
 
 export default function ReceivingForm({
@@ -71,7 +58,6 @@ export default function ReceivingForm({
     receivedQuantity: '',
     storageLocation: '',
     notes: '',
-    qualityStatus: 'PENDING',
     ...initialData
   })
 
@@ -257,7 +243,7 @@ export default function ReceivingForm({
 
           <div>
             <Label htmlFor="receivedQuantity">
-              ปริมาณ * {selectedMaterial && `(${selectedMaterial.unit})`}
+              ปริมาณ* (kg)
             </Label>
             <Input
               id="receivedQuantity"
@@ -275,50 +261,27 @@ export default function ReceivingForm({
           </div>
         </div>
 
-        {/* สถานที่เก็บและสถานะ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="storageLocation">สถานที่จัดเก็บ *</Label>
-            <Select
-              value={formData.storageLocation}
-              onValueChange={(value) => handleInputChange('storageLocation', value)}
-            >
-              <SelectTrigger className={errors.storageLocation ? 'border-red-500' : ''}>
-                <SelectValue placeholder="เลือกสถานที่จัดเก็บ" />
-              </SelectTrigger>
-              <SelectContent>
-                {STORAGE_LOCATIONS.map((location) => (
-                  <SelectItem key={location} value={location}>
-                    {location}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.storageLocation && (
-              <p className="text-sm text-red-500 mt-1">{errors.storageLocation}</p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="qualityStatus">สถานะการตรวจสอบคุณภาพ</Label>
-            <Select
-              value={formData.qualityStatus}
-              onValueChange={(value) => handleInputChange('qualityStatus', value)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {QUALITY_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <span className={`px-2 py-1 rounded text-xs ${option.color}`}>
-                      {option.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* สถานที่เก็บ */}
+        <div>
+          <Label htmlFor="storageLocation">สถานที่จัดเก็บ *</Label>
+          <Select
+            value={formData.storageLocation}
+            onValueChange={(value) => handleInputChange('storageLocation', value)}
+          >
+            <SelectTrigger className={errors.storageLocation ? 'border-red-500' : ''}>
+              <SelectValue placeholder="เลือกสถานที่จัดเก็บ" />
+            </SelectTrigger>
+            <SelectContent>
+              {STORAGE_LOCATIONS.map((location) => (
+                <SelectItem key={location} value={location}>
+                  {location}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.storageLocation && (
+            <p className="text-sm text-red-500 mt-1">{errors.storageLocation}</p>
+          )}
         </div>
 
         {/* หมายเหตุ */}
@@ -334,11 +297,11 @@ export default function ReceivingForm({
         </div>
 
         {/* คำเตือนเกี่ยวกับสต็อก */}
-        {formData.qualityStatus === 'APPROVED' && formData.receivedQuantity && (
+        {formData.receivedQuantity && (
           <Alert>
             <AlertDescription>
-              <strong>หมายเหตุ:</strong> เมื่อสถานะเป็น "อนุมัติ" ระบบจะเพิ่มปริมาณ {formData.receivedQuantity} {selectedMaterial?.unit || ''}
-              เข้าสู่สต็อกของวัตถุดิบนี้โดยอัตโนมัติ
+              <strong>หมายเหตุ:</strong> ระบบจะเพิ่มปริมาณ {formData.receivedQuantity} {selectedMaterial?.unit || ''}
+              เข้าสู่สต็อกของวัตถุดิบนี้โดยอัตโนมัติทันที
             </AlertDescription>
           </Alert>
         )}

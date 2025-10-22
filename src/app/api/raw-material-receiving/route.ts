@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
       receivedQuantity,
       storageLocation,
       notes,
-      qualityStatus = 'PENDING'
+      qualityStatus = 'APPROVED' // Auto-approve ทันทีเมื่อรับเข้า
     } = body
 
     // ตรวจสอบข้อมูลที่จำเป็น
@@ -162,37 +162,55 @@ export async function POST(request: NextRequest) {
     // สร้างเลขที่ใบรับเข้า
     const receivingNumber = await generateReceivingNumber()
 
-    // สร้างการรับเข้าใหม่
-    const newReceiving = await prisma.rawMaterialReceiving.create({
-      data: {
-        receivingNumber,
-        receivingDate: new Date(receivingDate),
-        purchaseOrderNo,
-        supplier,
-        rawMaterialId,
-        batchNumber,
-        receivedQuantity: parseFloat(receivedQuantity),
-        storageLocation,
-        notes,
-        qualityStatus,
-        receivedBy: `${session.user.firstName} ${session.user.lastName}`
-      },
-      include: {
-        rawMaterial: {
-          select: {
-            id: true,
-            materialCode: true,
-            materialName: true,
-            materialType: true,
-            unit: true
+    // สร้างการรับเข้าและอัปเดตสต็อกพร้อมกัน (ใช้ Transaction เพื่อความปลอดภัย)
+    const newReceiving = await prisma.$transaction(async (tx) => {
+      // สร้างการรับเข้าใหม่
+      const receiving = await tx.rawMaterialReceiving.create({
+        data: {
+          receivingNumber,
+          receivingDate: new Date(receivingDate),
+          purchaseOrderNo,
+          supplier,
+          rawMaterialId,
+          batchNumber,
+          receivedQuantity: parseFloat(receivedQuantity),
+          storageLocation,
+          notes,
+          qualityStatus,
+          receivedBy: `${session.user.firstName} ${session.user.lastName}`
+        },
+        include: {
+          rawMaterial: {
+            select: {
+              id: true,
+              materialCode: true,
+              materialName: true,
+              materialType: true,
+              unit: true
+            }
           }
         }
-      }
-    })
+      })
 
-    // อัปเดตสต็อกวัตถุดิบ (เฉพาะเมื่อสถานะเป็น APPROVED)
-    if (qualityStatus === 'APPROVED') {
-      await prisma.rawMaterial.update({
+      // สร้าง Batch Inventory อัตโนมัติ
+      await tx.rawMaterialBatch.create({
+        data: {
+          rawMaterialId,
+          receivingId: receiving.id,
+          batchNumber,
+          initialQuantity: parseFloat(receivedQuantity),
+          currentStock: parseFloat(receivedQuantity),
+          unit: rawMaterial.unit,
+          supplier,
+          receivedDate: new Date(receivingDate),
+          expiryDate: null, // สามารถเพิ่ม field นี้ใน form ได้ในอนาคต
+          storageLocation,
+          status: 'AVAILABLE'
+        }
+      })
+
+      // อัปเดตสต็อกวัตถุดิบทันที (Auto-approve)
+      await tx.rawMaterial.update({
         where: { id: rawMaterialId },
         data: {
           currentStock: {
@@ -200,7 +218,9 @@ export async function POST(request: NextRequest) {
           }
         }
       })
-    }
+
+      return receiving
+    })
 
     return NextResponse.json(
       {

@@ -219,10 +219,13 @@ export default function RawMaterialReceivingPage() {
             <p className="text-gray-600 mt-1">จัดการการรับเข้าวัตถุดิบสำหรับคลังสำนักงานใหญ่</p>
           </div>
           {!showAddForm && (
-            <Button onClick={() => setShowAddForm(true)} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-navy-900 hover:bg-navy-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+            >
+              <Plus className="h-4 w-4 mr-2" />
               บันทึกการรับเข้าใหม่
-            </Button>
+            </button>
           )}
         </div>
 

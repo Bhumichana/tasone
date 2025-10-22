@@ -28,8 +28,6 @@ export async function GET(request: NextRequest) {
         _count: {
           select: {
             users: true,
-            sales: true,
-            products: true,
             warranties: true
           }
         }
@@ -66,6 +64,7 @@ export async function POST(request: NextRequest) {
       dealerCode,
       manufacturerNumber,
       dealerName,
+      type,
       region,
       address,
       phoneNumber,
@@ -91,6 +90,7 @@ export async function POST(request: NextRequest) {
         dealerCode,
         manufacturerNumber,
         dealerName,
+        type: type || 'ตัวแทนจำหน่าย',
         region,
         address,
         phoneNumber,
@@ -109,8 +109,6 @@ export async function POST(request: NextRequest) {
         _count: {
           select: {
             users: true,
-            sales: true,
-            products: true,
             warranties: true
           }
         }

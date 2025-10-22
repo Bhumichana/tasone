@@ -3,6 +3,27 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
+// Helper function to convert dd/mm/yyyy to Date
+function parseDateDDMMYYYY(dateString: string): Date | null {
+  if (!dateString) return null
+
+  // Check if it's already in ISO format (yyyy-mm-dd)
+  if (dateString.includes('-')) {
+    return new Date(dateString)
+  }
+
+  // Parse dd/mm/yyyy format
+  const parts = dateString.split('/')
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10)
+    const month = parseInt(parts[1], 10) - 1 // months are 0-indexed in JS
+    const year = parseInt(parts[2], 10)
+    return new Date(year, month, day)
+  }
+
+  return null
+}
+
 // GET /api/warranties/[id] - ดึงข้อมูลใบรับประกันคนเดียว
 export async function GET(
   request: NextRequest,
@@ -26,30 +47,19 @@ export async function GET(
             id: true,
             dealerCode: true,
             dealerName: true,
+            manufacturerNumber: true,
             address: true,
             phoneNumber: true
           }
         },
-        product: {
-          include: {
-            sale: {
-              include: {
-                items: {
-                  include: {
-                    rawMaterial: {
-                      select: {
-                        id: true,
-                        materialCode: true,
-                        materialName: true,
-                        materialType: true
-                      }
-                    }
-                  }
-                }
-              }
-            }
+        subDealer: {
+          select: {
+            id: true,
+            name: true,
+            phoneNumber: true
           }
-        }
+        },
+        product: true
       }
     })
 
@@ -110,7 +120,17 @@ export async function PUT(
       customerAddress,
       warrantyDate,
       warrantyPeriodMonths,
-      warrantyTerms
+      warrantyTerms,
+      // ฟิลด์ใหม่
+      dealerName,
+      subDealerId,     // เพิ่ม: ID ของผู้ขายรายย่อย
+      productionDate,
+      deliveryDate,
+      purchaseOrderNo,
+      installationArea,
+      thickness,
+      chemicalBatchNo,
+      materialUsage  // เพิ่ม: ข้อมูลวัตถุดิบที่ใช้ (JSON string)
     } = body
 
     // ตรวจสอบว่าใบรับประกันมีอยู่หรือไม่
@@ -163,27 +183,28 @@ export async function PUT(
         warrantyDate: warrantyStartDate,
         expiryDate,
         warrantyPeriodMonths: parseInt(warrantyPeriodMonths),
-        warrantyTerms
+        warrantyTerms,
+        // ฟิลด์ใหม่
+        dealerName,
+        subDealerId: subDealerId || null,  // เพิ่ม: ID ของผู้ขายรายย่อย (optional)
+        productionDate: parseDateDDMMYYYY(productionDate),
+        deliveryDate: parseDateDDMMYYYY(deliveryDate),
+        purchaseOrderNo,
+        installationArea: installationArea ? parseFloat(installationArea) : null,
+        thickness: thickness ? parseFloat(thickness) : null,
+        chemicalBatchNo,
+        materialUsage  // เพิ่ม: บันทึกข้อมูลวัตถุดิบที่ใช้ (แต่ไม่หักสต็อกเมื่ออัปเดต)
       },
       include: {
         dealer: {
           select: {
             id: true,
             dealerCode: true,
-            dealerName: true
+            dealerName: true,
+            manufacturerNumber: true
           }
         },
-        product: {
-          include: {
-            sale: {
-              select: {
-                id: true,
-                saleNumber: true,
-                saleDate: true
-              }
-            }
-          }
-        }
+        product: true
       }
     })
 

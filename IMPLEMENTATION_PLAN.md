@@ -333,6 +333,5 @@ warranty-app/
 3. **สร้าง MVP** ให้ทดสอบ core functionality ก่อน
 4. **Iterate** ตาม feedback
 
----
 
 *คุณมีข้อเสนอแนะหรือต้องการปรับแต่ง Implementation plan นี้หรือไม่ครับ?*

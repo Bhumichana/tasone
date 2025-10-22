@@ -20,31 +20,7 @@ export async function GET(
 
     const { id } = await params
     const rawMaterial = await prisma.rawMaterial.findUnique({
-      where: { id },
-      include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        },
-        saleItems: {
-          include: {
-            sale: {
-              select: {
-                id: true,
-                saleDate: true,
-                saleNumber: true,
-                customerName: true
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'desc'
-          }
-        }
-      }
+      where: { id }
     })
 
     if (!rawMaterial) {
@@ -54,13 +30,6 @@ export async function GET(
       )
     }
 
-    // ตรวจสอบสิทธิ์การเข้าถึง
-    if (session.user.userGroup === 'Dealer' && session.user.dealerId !== rawMaterial.dealerId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
-    }
 
     return NextResponse.json({ rawMaterial })
   } catch (error) {
@@ -99,7 +68,6 @@ export async function PUT(
       location,
       expiryDate,
       batchNumber,
-      dealerId,
       minStock,
       currentStock
     } = body
@@ -130,17 +98,6 @@ export async function PUT(
       }
     }
 
-    // ตรวจสอบว่า dealer มีอยู่หรือไม่
-    const dealer = await prisma.dealer.findUnique({
-      where: { id: dealerId }
-    })
-
-    if (!dealer) {
-      return NextResponse.json(
-        { error: 'Dealer not found' },
-        { status: 400 }
-      )
-    }
 
     const updatedMaterial = await prisma.rawMaterial.update({
       where: { id },
@@ -154,23 +111,8 @@ export async function PUT(
         location,
         expiryDate: expiryDate ? new Date(expiryDate) : null,
         batchNumber,
-        dealerId,
         minStock: parseInt(minStock) || 0,
         currentStock: parseInt(currentStock) || 0
-      },
-      include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        },
-        _count: {
-          select: {
-            saleItems: true
-          }
-        }
       }
     })
 
@@ -205,24 +147,13 @@ export async function DELETE(
     const { id } = await params
     // ตรวจสอบว่าวัตถุดิบมีอยู่หรือไม่
     const existingMaterial = await prisma.rawMaterial.findUnique({
-      where: { id },
-      include: {
-        saleItems: true
-      }
+      where: { id }
     })
 
     if (!existingMaterial) {
       return NextResponse.json(
         { error: 'Raw material not found' },
         { status: 404 }
-      )
-    }
-
-    // ตรวจสอบว่ามีการขายแล้วหรือไม่
-    if (existingMaterial.saleItems.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete raw material that has been sold' },
-        { status: 400 }
       )
     }
 
@@ -273,13 +204,6 @@ export async function PATCH(
       )
     }
 
-    // ตรวจสอบสิทธิ์การเข้าถึง
-    if (session.user.userGroup === 'Dealer' && session.user.dealerId !== existingMaterial.dealerId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
-    }
 
     let newStock = existingMaterial.currentStock
 
@@ -305,15 +229,6 @@ export async function PATCH(
       data: {
         currentStock: newStock
       },
-      include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        }
-      }
     })
 
     return NextResponse.json({

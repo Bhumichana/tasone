@@ -11,115 +11,102 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
+  id           String   @id @default(cuid())
+  username     String   @unique
   password     String
-  userGroup    String    // "HeadOffice" หรือ "Dealer"
+  userGroup    String // "HeadOffice" หรือ "Dealer"
   role         String
   firstName    String
   lastName     String
   phoneNumber  String
-  profileImage String?   // URL ของรูปประจำตัว
+  email        String? // อีเมลของผู้ใช้งาน
+  lineId       String? // LINE ID ของผู้ใช้งาน
+  profileImage String? // URL ของรูปประจำตัว
   dealerId     String?
-  dealer       Dealer?   @relation(fields: [dealerId], references: [id])
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  dealer       Dealer?  @relation(fields: [dealerId], references: [id])
+  isActive     Boolean  @default(false) // สถานะการเปิดใช้งาน (ต้องรอ Admin อนุมัติ)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("users")
 }
 
 model Dealer {
-  id                 String        @id @default(cuid())
-  dealerCode         String        @unique
+  id                 String               @id @default(cuid())
+  dealerCode         String               @unique
   manufacturerNumber String
   dealerName         String
-  region             String?       // ตัวแทนจำหน่ายภาค
+  type               String               @default("ตัวแทนจำหน่าย") // "สำนักงานใหญ่" หรือ "ตัวแทนจำหน่าย"
+  region             String? // ตัวแทนจำหน่ายภาค
   address            String
   phoneNumber        String
   startDate          DateTime
   endDate            DateTime?
   users              User[]
-  sales              Sale[]
-  products           Product[]
   warranties         Warranty[]
-  rawMaterials       RawMaterial[]
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  subDealers         SubDealer[] // ผู้ขายรายย่อยภายใต้ดีลเลอร์
+  materialDeliveries MaterialDelivery[] // การส่งมอบวัตถุดิบที่ได้รับ
+  dealerReceipts     DealerReceipt[] // ใบรับสินค้าของดีลเลอร์
+  dealerStock        DealerStock[] // สต็อกวัตถุดิบของดีลเลอร์
+  notifications      DealerNotification[] // การแจ้งเตือนของดีลเลอร์
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 
   @@map("dealers")
 }
 
+// ผู้ขายรายย่อยภายใต้ดีลเลอร์ (ไม่ต้อง login)
+model SubDealer {
+  id          String     @id @default(cuid())
+  name        String // ชื่อผู้ขายรายย่อย
+  address     String? // ที่อยู่
+  phoneNumber String? // เบอร์โทร
+  email       String? // อีเมล
+  dealerId    String // ดีลเลอร์เจ้าของ
+  dealer      Dealer     @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  warranties  Warranty[] // การรับประกันที่เกิดจาก Sub-dealer นี้
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("sub_dealers")
+}
+
 model RawMaterial {
-  id           String                  @id @default(cuid())
-  materialCode String                  @unique
-  materialName String
-  materialType String
-  description  String?
-  unit         String                  // หน่วยของวัตถุดิบ (เช่น กก., ชิ้น, เมตร)
-  supplier     String?                 // ชื่อผู้จัดหา/บริษัท
-  location     String?                 // สถานที่จัดเก็บ
-  expiryDate   DateTime?               // วันหมดอายุ
-  batchNumber  String?                 // หมายเลข Batch/Lot
-  currentStock Int                     @default(0)
-  minStock     Int                     @default(0)
-  dealerId     String
-  dealer       Dealer                  @relation(fields: [dealerId], references: [id])
-  saleItems    SaleItem[]
-  receivings   RawMaterialReceiving[]  // เพิ่ม relation กับ receiving
-  createdAt    DateTime                @default(now())
-  updatedAt    DateTime                @updatedAt
+  id            String                 @id @default(cuid())
+  materialCode  String                 @unique
+  materialName  String
+  materialType  String
+  description   String?
+  unit          String // หน่วยของวัตถุดิบ (เช่น กก., ชิ้น, เมตร)
+  supplier      String? // ชื่อผู้จัดหา/บริษัท
+  location      String? // สถานที่จัดเก็บ
+  expiryDate    DateTime? // วันหมดอายุ
+  batchNumber   String? // หมายเลข Batch/Lot
+  currentStock  Float                  @default(0)
+  minStock      Float                  @default(0)
+  receivings    RawMaterialReceiving[] // เพิ่ม relation กับ receiving
+  batches       RawMaterialBatch[] // Batch ทั้งหมดของวัตถุดิบนี้
+  deliveryItems MaterialDeliveryItem[] // รายการส่งมอบวัตถุดิบ
+  recipeItems   ProductRecipeItem[] // เพิ่มรายการในสูตรการผลิต
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
 
   @@map("raw_materials")
 }
 
-model Sale {
-  id              String     @id @default(cuid())
-  saleNumber      String     @unique
-  customerName    String
-  customerPhone   String?
-  customerAddress String?
-  saleDate        DateTime
-  totalAmount     Float      @default(0)
-  status          String     @default("pending")
-  notes           String?
-  dealerId        String
-  dealer          Dealer     @relation(fields: [dealerId], references: [id])
-  items           SaleItem[]
-  products        Product[]
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-
-  @@map("sales")
-}
-
-model SaleItem {
-  id            String      @id @default(cuid())
-  saleId        String
-  sale          Sale        @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  rawMaterialId String
-  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id])
-  quantity      Float
-  unitPrice     Float
-  totalPrice    Float
-  createdAt     DateTime    @default(now())
-
-  @@map("sale_items")
-}
-
 model Product {
-  id          String     @id @default(cuid())
-  productCode String     @unique
-  productName String
-  serialNumber String?   @unique
-  category    String
-  description String?
-  dealerId    String
-  dealer      Dealer     @relation(fields: [dealerId], references: [id])
-  saleId      String?
-  sale        Sale?      @relation(fields: [saleId], references: [id])
-  warranties  Warranty[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id            String         @id @default(cuid())
+  productCode   String         @unique
+  productName   String
+  serialNumber  String?        @unique
+  category      String
+  description   String?
+  warrantyTerms String? // เงื่อนไขการรับประกันมาตรฐาน
+  thickness     Float? // ความหนา (mm.) สำหรับคำนวณตัดสต็อกวัตถุดิบ
+  warranties    Warranty[]
+  recipe        ProductRecipe? // เพิ่มสูตรการผลิต
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@map("products")
 }
@@ -137,38 +124,251 @@ model Warranty {
   expiryDate           DateTime
   warrantyPeriodMonths Int
   warrantyTerms        String?
-  dealerId             String
-  dealer               Dealer   @relation(fields: [dealerId], references: [id])
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+
+  // ข้อมูลเพิ่มเติม
+  dealerName       String? // ชื่อผู้จำหน่าย
+  productionDate   DateTime? // วันที่ผลิต
+  deliveryDate     DateTime? // วันที่ส่งมอบ
+  purchaseOrderNo  String? // เลขที่ใบสั่งซื้อ
+  installationArea Float? // พื้นที่ติดตั้งฉนวน (ตารางเมตร)
+  thickness        Float? // ความหนา (มิลลิเมตร)
+  chemicalBatchNo  String? // หมายเลข Batch สารเคมี
+  materialUsage    String? // ข้อมูลวัตถุดิบที่ใช้ (JSON format)
+
+  dealerId    String
+  dealer      Dealer     @relation(fields: [dealerId], references: [id])
+  subDealerId String? // ผู้ขายรายย่อย (optional)
+  subDealer   SubDealer? @relation(fields: [subDealerId], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@map("warranties")
 }
 
 model RawMaterialReceiving {
-  id                String        @id @default(cuid())
-  receivingNumber   String        @unique // เลขที่ใบนำเข้า (HQ-RCV-YYYYMMDD-XXX)
-  receivingDate     DateTime      // วันที่รับเข้าสินค้า
-  purchaseOrderNo   String?       // เลขที่ใบสั่งซื้อ (optional)
+  id              String   @id @default(cuid())
+  receivingNumber String   @unique // เลขที่ใบนำเข้า (HQ-RCV-YYYYMMDD-XXX)
+  receivingDate   DateTime // วันที่รับเข้าสินค้า
+  purchaseOrderNo String? // เลขที่ใบสั่งซื้อ (optional)
 
   // ข้อมูลผู้ผลิต/ผู้ขาย
-  supplier          String        // ผู้ผลิต/ผู้ขาย
+  supplier String // ผู้ผลิต/ผู้ขาย
 
   // ข้อมูลวัตถุดิบ
-  rawMaterialId     String        // เชื่อมต่อกับตารางวัตถุดิบ
-  rawMaterial       RawMaterial   @relation(fields: [rawMaterialId], references: [id])
+  rawMaterialId String // เชื่อมต่อกับตารางวัตถุดิบ
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id])
 
-  batchNumber       String        // Batch No.
-  receivedQuantity  Float         // ปริมาณที่รับเข้า (kg)
-  storageLocation   String        // สถานที่จัดเก็บในคลังสำนักงานใหญ่
+  batchNumber      String // Batch No.
+  receivedQuantity Float // ปริมาณที่รับเข้า (kg)
+  storageLocation  String // สถานที่จัดเก็บในคลังสำนักงานใหญ่
 
   // ข้อมูลเพิ่มเติม
-  qualityStatus     String        @default("PENDING") // สถานะการตรวจสอบคุณภาพ (PENDING, APPROVED, REJECTED)
-  notes             String?       // หมายเหตุ
-  receivedBy        String        // เจ้าหน้าที่ผู้รับเข้า (Head Office)
+  qualityStatus String  @default("PENDING") // สถานะการตรวจสอบคุณภาพ (PENDING, APPROVED, REJECTED)
+  notes         String? // หมายเหตุ
+  receivedBy    String // เจ้าหน้าที่ผู้รับเข้า (Head Office)
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  // Batch ที่สร้างจากการรับเข้านี้
+  batches RawMaterialBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("raw_material_receiving")
+}
+
+// Batch สต็อกวัตถุดิบ (แยกตาม Batch Number)
+model RawMaterialBatch {
+  id String @id @default(cuid())
+
+  // เชื่อมต่อกับวัตถุดิบ
+  rawMaterialId String
+  rawMaterial   RawMaterial @relation(fields: [rawMaterialId], references: [id])
+
+  // เชื่อมต่อกับการรับเข้า
+  receivingId String
+  receiving   RawMaterialReceiving @relation(fields: [receivingId], references: [id])
+
+  // ข้อมูล Batch
+  batchNumber     String // เลข Batch
+  initialQuantity Float // ปริมาณเริ่มต้น
+  currentStock    Float // สต็อกปัจจุบัน
+  unit            String // หน่วย (kg, ชิ้น, ฯลฯ)
+
+  // ข้อมูลเพิ่มเติม
+  supplier        String // ผู้จัดหา
+  receivedDate    DateTime // วันที่รับเข้า
+  expiryDate      DateTime? // วันหมดอายุ (ถ้ามี)
+  storageLocation String // สถานที่จัดเก็บ
+
+  // สถานะ
+  status String @default("AVAILABLE") // AVAILABLE, OUT_OF_STOCK, EXPIRED
+
+  // รายการส่งมอบที่ใช้ Batch นี้
+  deliveryItems MaterialDeliveryItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ไม่ให้มี Batch ซ้ำในวัตถุดิบเดียวกัน
+  @@unique([rawMaterialId, batchNumber])
+  @@map("raw_material_batches")
+}
+
+// หัวรายการส่งมอบวัตถุดิบ (ครั้งเดียวต่อการส่งมอบ)
+model MaterialDelivery {
+  id             String   @id @default(cuid())
+  deliveryNumber String   @unique // เลขที่การส่งมอบ (DEL-YYYYMMDD-XXX)
+  deliveryDate   DateTime // วันที่ส่งมอบ
+  dealerId       String // ตัวแทนจำหน่ายที่รับวัตถุดิบ
+  dealer         Dealer   @relation(fields: [dealerId], references: [id])
+  status         String   @default("PREPARING") // สถานะการส่งมอบ (PREPARING, SHIPPING, DELIVERED)
+  totalItems     Int      @default(0) // จำนวนรายการวัตถุดิบทั้งหมด
+  notes          String? // หมายเหตุ
+
+  // รายการวัตถุดิบในการส่งมอบนี้
+  items MaterialDeliveryItem[]
+
+  // ใบรับที่เชื่อมต่อกับการส่งมอบนี้
+  dealerReceipt DealerReceipt?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("material_deliveries")
+}
+
+// รายการวัตถุดิบในแต่ละการส่งมอบ
+model MaterialDeliveryItem {
+  id            String           @id @default(cuid())
+  deliveryId    String // เชื่อมต่อกับหัวรายการส่งมอบ
+  delivery      MaterialDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  rawMaterialId String // วัตถุดิบที่ส่งมอบ
+  rawMaterial   RawMaterial      @relation(fields: [rawMaterialId], references: [id])
+
+  // เชื่อมต่อกับ Batch
+  batchId     String? // Batch ที่ส่งมอบ (optional สำหรับข้อมูลเก่า)
+  batch       RawMaterialBatch? @relation(fields: [batchId], references: [id])
+  batchNumber String // Batch Number
+
+  quantity Float // ปริมาณที่ส่งมอบ
+  unit     String // หน่วย (kg, ชิ้น, เมตร ฯลฯ)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("material_delivery_items")
+}
+
+// ใบรับสินค้าของดีลเลอร์
+model DealerReceipt {
+  id                 String           @id @default(cuid())
+  receiptNumber      String           @unique // เลขที่ใบรับ (RCP-DEALER-YYYYMMDD-XXX)
+  materialDeliveryId String           @unique // เชื่อมต่อกับการส่งมอบ (one-to-one)
+  materialDelivery   MaterialDelivery @relation(fields: [materialDeliveryId], references: [id])
+  dealerId           String // ดีลเลอร์ที่รับสินค้า
+  dealer             Dealer           @relation(fields: [dealerId], references: [id])
+  receiptDate        DateTime // วันที่รับสินค้า
+  receivedBy         String // ผู้รับสินค้า (ชื่อเจ้าหน้าที่ของดีลเลอร์)
+  status             String           @default("RECEIVED") // สถานะ (RECEIVED)
+  notes              String? // หมายเหตุ
+
+  // รายการสินค้าที่รับ
+  items DealerReceiptItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dealer_receipts")
+}
+
+// รายการสินค้าในใบรับของดีลเลอร์
+model DealerReceiptItem {
+  id               String        @id @default(cuid())
+  receiptId        String // เชื่อมต่อกับใบรับ
+  receipt          DealerReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  rawMaterialId    String // วัตถุดิบที่รับ
+  batchNumber      String // Batch Number
+  quantity         Float // ปริมาณที่รับ
+  unit             String // หน่วย
+  receivedQuantity Float // ปริมาณที่รับจริง (อาจต่างจากที่ส่ง)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dealer_receipt_items")
+}
+
+// สต็อกวัตถุดิบของดีลเลอร์
+model DealerStock {
+  id           String   @id @default(cuid())
+  dealerId     String // ดีลเลอร์เจ้าของสต็อก
+  dealer       Dealer   @relation(fields: [dealerId], references: [id])
+  materialCode String // รหัสวัตถุดิบ
+  materialName String // ชื่อวัตถุดิบ
+  materialType String // ประเภทวัตถุดิบ
+  batchNumber  String // Batch Number
+  currentStock Float    @default(0) // สต็อกปัจจุบัน
+  unit         String // หน่วย
+  lastUpdated  DateTime @default(now()) // วันที่อัปเดตล่าสุด
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ไม่ให้มี materialCode และ batchNumber ซ้ำในดีลเลอร์เดียวกัน
+  @@unique([dealerId, materialCode, batchNumber])
+  @@map("dealer_stock")
+}
+
+// การแจ้งเตือนสำหรับดีลเลอร์
+model DealerNotification {
+  id       String    @id @default(cuid())
+  dealerId String // ดีลเลอร์ที่ได้รับการแจ้งเตือน
+  dealer   Dealer    @relation(fields: [dealerId], references: [id])
+  type     String // ประเภทการแจ้งเตือน (INCOMING_MATERIALS, SYSTEM_MESSAGE)
+  title    String // หัวข้อการแจ้งเตือน
+  message  String // ข้อความ
+  data     String? // ข้อมูลเพิ่มเติม (JSON format)
+  isRead   Boolean   @default(false) // อ่านแล้วหรือยัง
+  readAt   DateTime? // วันที่อ่าน
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("dealer_notifications")
+}
+
+// สูตรการผลิตสินค้า
+model ProductRecipe {
+  id              String  @id @default(cuid())
+  productId       String  @unique // One-to-One กับ Product
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  recipeName      String // ชื่อสูตร เช่น "สูตรมาตรฐาน", "สูตร A"
+  version         String  @default("1.0")
+  description     String? // คำอธิบายสูตร
+  isActive        Boolean @default(true)
+  calculationUnit String  @default("PER_UNIT") // "PER_UNIT" = ต่อหน่วย, "PER_SQM" = ต่อตารางเมตร
+
+  items ProductRecipeItem[] // รายการวัตถุดิบ
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_recipes")
+}
+
+// รายการวัตถุดิบในสูตรการผลิต
+model ProductRecipeItem {
+  id            String        @id @default(cuid())
+  recipeId      String
+  recipe        ProductRecipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  rawMaterialId String
+  rawMaterial   RawMaterial   @relation(fields: [rawMaterialId], references: [id])
+  quantity      Float // ปริมาณที่ต้องใช้
+  unit          String // หน่วย
+  notes         String? // หมายเหตุ
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("product_recipe_items")
 }

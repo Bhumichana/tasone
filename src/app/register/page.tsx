@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
+import { Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export default function RegisterPage() {
@@ -13,11 +15,16 @@ export default function RegisterPage() {
     firstName: '',
     lastName: '',
     phoneNumber: '',
+    email: '',
+    lineId: '',
     dealerId: ''
   })
   const [loading, setLoading] = useState(false)
+  const [dealersLoading, setDealersLoading] = useState(true)
   const [error, setError] = useState('')
   const [dealers, setDealers] = useState([])
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const router = useRouter()
 
   // ดึงข้อมูล dealers เมื่อโหลดหน้า
@@ -27,11 +34,20 @@ export default function RegisterPage() {
 
   const fetchDealers = async () => {
     try {
-      const res = await fetch('/api/dealers')
+      setDealersLoading(true)
+      const res = await fetch('/api/dealers/public')
       const data = await res.json()
-      setDealers(data.dealers || [])
+      if (res.ok) {
+        setDealers(data.dealers || [])
+      } else {
+        console.error('Error fetching dealers:', data.error)
+        setError('ไม่สามารถโหลดข้อมูลตัวแทนจำหน่ายได้')
+      }
     } catch (error) {
       console.error('Error fetching dealers:', error)
+      setError('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์')
+    } finally {
+      setDealersLoading(false)
     }
   }
 
@@ -72,6 +88,8 @@ export default function RegisterPage() {
           firstName: formData.firstName,
           lastName: formData.lastName,
           phoneNumber: formData.phoneNumber,
+          email: formData.email,
+          lineId: formData.lineId,
           dealerId: formData.dealerId,
           userGroup: 'Dealer', // กำหนดให้เป็น Dealer โดยอัตโนมัติ
           role: 'Dealer Staff'
@@ -97,6 +115,19 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-white flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8">
         <div className="bg-white rounded-lg shadow-xl border-2 border-navy-900 p-8">
+          {/* Logo */}
+          <div className="flex justify-center mb-6">
+            <div className="w-24 h-24 relative">
+              <Image
+                src="/tas-logo.svg"
+                alt="TAS Logo"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
+          </div>
+
           {/* Header */}
           <div className="text-center">
             <h1 className="text-3xl font-bold text-navy-900 mb-2">
@@ -200,9 +231,119 @@ export default function RegisterPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    อีเมล
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className={cn(
+                      "mt-1 appearance-none relative block w-full px-3 py-2",
+                      "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
+                      "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
+                      "focus:z-10 sm:text-sm"
+                    )}
+                    placeholder="example@email.com"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="lineId" className="block text-sm font-medium text-gray-700">
+                    LINE ID
+                  </label>
+                  <input
+                    id="lineId"
+                    name="lineId"
+                    type="text"
+                    value={formData.lineId}
+                    onChange={handleChange}
+                    className={cn(
+                      "mt-1 appearance-none relative block w-full px-3 py-2",
+                      "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
+                      "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
+                      "focus:z-10 sm:text-sm"
+                    )}
+                    placeholder="@lineid หรือ userid"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  รหัสผ่าน <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.password}
+                    onChange={handleChange}
+                    className={cn(
+                      "mt-1 appearance-none relative block w-full px-3 py-2 pr-10",
+                      "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
+                      "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
+                      "focus:z-10 sm:text-sm"
+                    )}
+                    placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 mt-0.5 p-1 rounded-full border border-gray-300 hover:border-gray-400 transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                  ยืนยันรหัสผ่าน <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className={cn(
+                      "mt-1 appearance-none relative block w-full px-3 py-2 pr-10",
+                      "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
+                      "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
+                      "focus:z-10 sm:text-sm"
+                    )}
+                    placeholder="กรอกรหัสผ่านอีกครั้ง"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 mt-0.5 p-1 rounded-full border border-gray-300 hover:border-gray-400 transition-colors"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="dealerId" className="block text-sm font-medium text-gray-700">
-                  ตัวแทนจำหน่าย <span className="text-red-500">*</span>
+                  ตัวแทนจำหน่ายต้นสังกัด <span className="text-red-500">*</span>
                 </label>
                 <select
                   id="dealerId"
@@ -210,62 +351,24 @@ export default function RegisterPage() {
                   required
                   value={formData.dealerId}
                   onChange={handleChange}
+                  disabled={dealersLoading}
                   className={cn(
                     "mt-1 appearance-none relative block w-full px-3 py-2",
                     "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
                     "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
-                    "focus:z-10 sm:text-sm"
+                    "focus:z-10 sm:text-sm",
+                    dealersLoading && "opacity-50 cursor-not-allowed"
                   )}
                 >
-                  <option value="">เลือกตัวแทนจำหน่าย</option>
-                  {dealers.map((dealer: any) => (
+                  <option value="">
+                    {dealersLoading ? 'กำลังโหลดข้อมูลตัวแทนจำหน่าย...' : 'เลือกตัวแทนจำหน่ายต้นสังกัด'}
+                  </option>
+                  {!dealersLoading && dealers.map((dealer: any) => (
                     <option key={dealer.id} value={dealer.id}>
-                      {dealer.dealerName}
+                      {dealer.dealerName} ({dealer.dealerCode})
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  รหัสผ่าน <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className={cn(
-                    "mt-1 appearance-none relative block w-full px-3 py-2",
-                    "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
-                    "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
-                    "focus:z-10 sm:text-sm"
-                  )}
-                  placeholder="กรอกรหัสผ่าน (อย่างน้อย 6 ตัวอักษร)"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                  ยืนยันรหัสผ่าน <span className="text-red-500">*</span>
-                </label>
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type="password"
-                  required
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className={cn(
-                    "mt-1 appearance-none relative block w-full px-3 py-2",
-                    "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
-                    "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
-                    "focus:z-10 sm:text-sm"
-                  )}
-                  placeholder="กรอกรหัสผ่านอีกครั้ง"
-                />
               </div>
             </div>
 

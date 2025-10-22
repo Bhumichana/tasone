@@ -17,7 +17,12 @@ import {
   LogOut,
   User,
   Settings,
-  Truck
+  Truck,
+  Send,
+  PackageOpen,
+  Archive,
+  BarChart,
+  Store
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -35,11 +40,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     ...(session?.user.userGroup === 'HeadOffice' ? [
       { name: 'จัดการผู้ใช้งาน', href: '/dashboard/users', icon: Users, current: pathname === '/dashboard/users' },
       { name: 'จัดการตัวแทนจำหน่าย', href: '/dashboard/dealers', icon: Building2, current: pathname === '/dashboard/dealers' },
+      { name: 'วัตถุดิบ (Raw Materials)', href: '/dashboard/raw-materials', icon: Package, current: pathname === '/dashboard/raw-materials' },
       { name: 'การรับเข้าวัตถุดิบ', href: '/dashboard/raw-material-receiving', icon: Truck, current: pathname === '/dashboard/raw-material-receiving' },
-    ] : []),
-    { name: 'จัดการวัตถุดิบ', href: '/dashboard/raw-materials', icon: Package, current: pathname === '/dashboard/raw-materials' },
-    { name: 'จัดการสินค้า', href: '/dashboard/products', icon: ShoppingCart, current: pathname === '/dashboard/products' },
+      { name: 'การส่งมอบวัตถุดิบ', href: '/dashboard/material-deliveries', icon: Send, current: pathname === '/dashboard/material-deliveries' },
+    ] : [
+      // Dealer-only menus
+      { name: 'การรับเข้าวัตถุดิบ', href: '/dashboard/incoming-materials', icon: PackageOpen, current: pathname === '/dashboard/incoming-materials' },
+      { name: 'คลังสต็อกวัตถุดิบ', href: '/dashboard/stock', icon: Archive, current: pathname === '/dashboard/stock' },
+      { name: 'ผู้ขายรายย่อย', href: '/dashboard/sub-dealers', icon: Store, current: pathname === '/dashboard/sub-dealers' },
+    ]),
+    { name: 'สินค้า(BOM)', href: '/dashboard/products', icon: ShoppingCart, current: pathname === '/dashboard/products' },
     { name: 'จัดการใบรับประกัน', href: '/dashboard/warranties', icon: FileText, current: pathname === '/dashboard/warranties' },
+    { name: 'รายงานระบบ', href: '/dashboard/reports', icon: BarChart, current: pathname === '/dashboard/reports' },
     { name: 'โปรไฟล์', href: '/dashboard/profile', icon: Settings, current: pathname === '/dashboard/profile' },
   ]
 
@@ -99,7 +111,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </li>
                 <li className="-mx-6 mt-auto">
                   <div className="flex items-center gap-x-4 px-6 py-3 text-sm font-semibold leading-6 text-gray-300">
-                    <User className="h-8 w-8 rounded-full bg-blue-800 p-1" />
+                    {session.user.avatarUrl ? (
+                      <div className="relative h-8 w-8 rounded-full overflow-hidden bg-blue-800">
+                        <Image
+                          src={session.user.avatarUrl}
+                          alt="User Avatar"
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <User className="h-8 w-8 rounded-full bg-blue-800 p-1" />
+                    )}
                     <span className="sr-only">Your profile</span>
                     <div className="flex-1">
                       <span className="text-white">{session.user.firstName} {session.user.lastName}</span>
@@ -167,7 +190,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </li>
               <li className="-mx-6 mt-auto">
                 <div className="flex items-center gap-x-4 px-6 py-3 text-sm font-semibold leading-6 text-gray-300">
-                  <User className="h-8 w-8 rounded-full bg-blue-800 p-1" />
+                  {session.user.avatarUrl ? (
+                    <div className="relative h-8 w-8 rounded-full overflow-hidden bg-blue-800 shrink-0">
+                      <Image
+                        src={session.user.avatarUrl}
+                        alt="User Avatar"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <User className="h-8 w-8 rounded-full bg-blue-800 p-1 shrink-0" />
+                  )}
                   <span className="sr-only">Your profile</span>
                   {isDesktopSidebarOpen && (
                     <div className="flex-1 transition-opacity duration-300">

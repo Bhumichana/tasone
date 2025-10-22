@@ -18,6 +18,7 @@ import {
   Eye
 } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface SaleItem {
   id: string
@@ -326,21 +327,21 @@ export default function SalesPage() {
               </select>
             )}
 
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              placeholder="จากวันที่"
-              className="py-2 px-3 border border-gray-300 rounded-md"
-            />
+            <div>
+              <DatePicker
+                value={dateFrom}
+                onChange={(date) => setDateFrom(date)}
+                placeholder="จากวันที่"
+              />
+            </div>
 
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              placeholder="ถึงวันที่"
-              className="py-2 px-3 border border-gray-300 rounded-md"
-            />
+            <div>
+              <DatePicker
+                value={dateTo}
+                onChange={(date) => setDateTo(date)}
+                placeholder="ถึงวันที่"
+              />
+            </div>
           </div>
 
           {/* Sales Table */}
@@ -487,12 +488,10 @@ export default function SalesPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่ขาย</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={formData.saleDate}
-                    onChange={(e) => setFormData({ ...formData, saleDate: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    required
+                    onChange={(date) => setFormData({ ...formData, saleDate: date })}
+                    placeholder="เลือกวันที่ขาย"
                   />
                 </div>
 

@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
         phoneNumber,
         dealerId,
         userGroup: 'Dealer', // กำหนดให้เป็น Dealer โดยอัตโนมัติ
-        role: role || 'Dealer Staff'
+        role: role || 'Dealer Staff',
+        isActive: false // ต้องรอ Admin อนุมัติก่อนจึงจะใช้งานได้
       }
     })
 
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
     const { password: _, ...userWithoutPassword } = newUser
 
     return NextResponse.json({
-      message: 'ลงทะเบียนสำเร็จ',
+      message: 'ลงทะเบียนสำเร็จ กรุณารอการอนุมัติจากผู้ดูแลระบบก่อนเข้าใช้งาน',
       user: userWithoutPassword
     })
 

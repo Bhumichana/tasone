@@ -479,3 +479,23 @@ h1.text-navy-900 {
 }
 
 /* Base styles - removed problematic @layer base directive */
+
+/* ซ่อน Next.js error overlay */
+nextjs-portal,
+#nextjs__container_errors_label,
+#__next-build-watcher,
+.__next-build-watcher {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* ซ่อน Fast Refresh error overlay */
+[data-nextjs-dialog-overlay],
+[data-nextjs-toast],
+.__next-error-overlay {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}

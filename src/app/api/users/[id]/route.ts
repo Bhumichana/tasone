@@ -77,6 +77,8 @@ export async function PUT(
       firstName,
       lastName,
       phoneNumber,
+      email,
+      lineId,
       dealerId,
       profileImage
     } = body
@@ -115,6 +117,8 @@ export async function PUT(
       firstName,
       lastName,
       phoneNumber,
+      email: email || null,
+      lineId: lineId || null,
       dealerId: userGroup === 'Dealer' ? dealerId : null
     }
 

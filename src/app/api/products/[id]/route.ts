@@ -22,31 +22,6 @@ export async function GET(
     const product = await prisma.product.findUnique({
       where: { id },
       include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true,
-            address: true,
-            phoneNumber: true
-          }
-        },
-        sale: {
-          include: {
-            items: {
-              include: {
-                rawMaterial: {
-                  select: {
-                    id: true,
-                    materialCode: true,
-                    materialName: true,
-                    materialType: true
-                  }
-                }
-              }
-            }
-          }
-        },
         warranties: {
           orderBy: {
             warrantyDate: 'desc'
@@ -59,14 +34,6 @@ export async function GET(
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
-      )
-    }
-
-    // ตรวจสอบสิทธิ์การเข้าถึง
-    if (session.user.userGroup === 'Dealer' && session.user.dealerId !== product.dealerId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
       )
     }
 
@@ -103,8 +70,8 @@ export async function PUT(
       serialNumber,
       category,
       description,
-      dealerId,
-      saleId
+      warrantyTerms,
+      thickness
     } = body
 
     // ตรวจสอบว่าสินค้ามีอยู่หรือไม่
@@ -116,14 +83,6 @@ export async function PUT(
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
-      )
-    }
-
-    // ตรวจสอบสิทธิ์การเข้าถึง
-    if (session.user.userGroup === 'Dealer' && session.user.dealerId !== existingProduct.dealerId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
       )
     }
 
@@ -155,72 +114,18 @@ export async function PUT(
       }
     }
 
-    // ตรวจสอบ dealer (หาก HeadOffice)
-    const finalDealerId = session.user.userGroup === 'Dealer'
-      ? session.user.dealerId
-      : dealerId
-
-    if (session.user.userGroup === 'HeadOffice' && dealerId) {
-      const dealer = await prisma.dealer.findUnique({
-        where: { id: dealerId }
-      })
-
-      if (!dealer) {
-        return NextResponse.json(
-          { error: 'Dealer not found' },
-          { status: 400 }
-        )
-      }
-    }
-
-    // ตรวจสอบ sale (ถ้าระบุ)
-    if (saleId) {
-      const sale = await prisma.sale.findUnique({
-        where: { id: saleId }
-      })
-
-      if (!sale) {
-        return NextResponse.json(
-          { error: 'Sale not found' },
-          { status: 400 }
-        )
-      }
-
-      if (sale.dealerId !== finalDealerId) {
-        return NextResponse.json(
-          { error: 'Sale does not belong to this dealer' },
-          { status: 400 }
-        )
-      }
-    }
-
     const updatedProduct = await prisma.product.update({
       where: { id },
       data: {
         productCode,
         productName,
-        serialNumber,
+        serialNumber: serialNumber || null,
         category,
-        description,
-        dealerId: finalDealerId,
-        saleId: saleId || undefined
+        description: description || null,
+        warrantyTerms: warrantyTerms || null,
+        thickness: thickness ? parseFloat(thickness) : null
       },
       include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        },
-        sale: {
-          select: {
-            id: true,
-            saleNumber: true,
-            customerName: true,
-            saleDate: true
-          }
-        },
         warranties: {
           select: {
             id: true,
@@ -273,14 +178,6 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
-      )
-    }
-
-    // ตรวจสอบสิทธิ์การเข้าถึง
-    if (session.user.userGroup === 'Dealer' && session.user.dealerId !== existingProduct.dealerId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
       )
     }
 

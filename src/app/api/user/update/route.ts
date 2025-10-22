@@ -41,8 +41,12 @@ export async function PUT(request: NextRequest) {
     if (body.lastName !== undefined) updateData.lastName = body.lastName;
     if (body.phoneNumber !== undefined) updateData.phoneNumber = body.phoneNumber;
     if (body.profileImage !== undefined) updateData.profileImage = body.profileImage;
-    if (body.role !== undefined) updateData.role = body.role;
-    if (body.userGroup !== undefined) updateData.userGroup = body.userGroup;
+
+    // เฉพาะ HeadOffice เท่านั้นที่สามารถแก้ไข role และ userGroup ได้
+    if (session.user?.userGroup === 'HeadOffice') {
+      if (body.role !== undefined) updateData.role = body.role;
+      if (body.userGroup !== undefined) updateData.userGroup = body.userGroup;
+    }
 
     // ตรวจสอบ username ซ้ำ (ถ้ามีการเปลี่ยน)
     if (body.username && body.username !== currentUser.username) {

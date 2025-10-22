@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useEffect, useRef } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,8 +33,9 @@ interface UserProfile {
 }
 
 export default function ProfilePage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
+  const isRedirectingRef = useRef(false); // Flag to prevent state updates during redirect
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -54,12 +55,14 @@ export default function ProfilePage() {
     userGroup: ''
   });
 
-  // Load user profile
+  // Load user profile - runs only once
   useEffect(() => {
+    let isMounted = true;
+
     const fetchProfile = async () => {
       try {
         const response = await fetch('/api/user/profile');
-        if (response.ok) {
+        if (response.ok && isMounted) {
           const data = await response.json();
           setProfile(data);
           setFormData({
@@ -71,83 +74,109 @@ export default function ProfilePage() {
             role: data.role || '',
             userGroup: data.userGroup || ''
           });
+          setLoading(false);
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
-        setMessage({ type: 'error', text: 'ไม่สามารถโหลดข้อมูลโปรไฟล์ได้' });
-      } finally {
-        setLoading(false);
+        if (isMounted) {
+          setMessage({ type: 'error', text: 'ไม่สามารถโหลดข้อมูลโปรไฟล์ได้' });
+          setLoading(false);
+        }
       }
     };
 
-    if (session) {
+    if (status === 'authenticated') {
       fetchProfile();
+    } else if (status === 'unauthenticated') {
+      router.push('/login');
     }
-  }, [session]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [status, router]);
 
   // Handle file upload
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Don't process if redirecting
+    if (isRedirectingRef.current) return;
+
     const file = event.target.files?.[0];
     if (!file) return;
 
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      setMessage({ type: 'error', text: 'รองรับเฉพาะไฟล์ JPEG, PNG และ WebP เท่านั้น' });
+      if (!isRedirectingRef.current) {
+        setMessage({ type: 'error', text: 'รองรับเฉพาะไฟล์ JPEG, PNG และ WebP เท่านั้น' });
+      }
       return;
     }
 
     // Validate file size (5MB max)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      setMessage({ type: 'error', text: 'ไฟล์มีขนาดใหญ่เกินไป (สูงสุด 5MB)' });
+      if (!isRedirectingRef.current) {
+        setMessage({ type: 'error', text: 'ไฟล์มีขนาดใหญ่เกินไป (สูงสุด 5MB)' });
+      }
       return;
     }
 
-    setUploading(true);
-    setMessage(null);
+    if (!isRedirectingRef.current) {
+      setUploading(true);
+      setMessage(null);
+    }
 
     try {
       // Show preview
       const reader = new FileReader();
       reader.onload = (e) => {
-        setPreviewUrl(e.target?.result as string);
+        if (!isRedirectingRef.current) {
+          setPreviewUrl(e.target?.result as string);
+        }
       };
       reader.readAsDataURL(file);
 
       // Upload file
-      const formData = new FormData();
-      formData.append('file', file);
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
 
       const response = await fetch('/api/upload/avatar', {
         method: 'POST',
-        body: formData,
+        body: uploadFormData,
       });
+
+      if (isRedirectingRef.current) return;
 
       const result = await response.json();
 
-      if (response.ok) {
-        // Update profile image URL
-        if (profile) {
-          setProfile({ ...profile, profileImage: result.url });
-        }
+      if (response.ok && !isRedirectingRef.current) {
+        setProfile(prev => prev ? { ...prev, profileImage: result.url } : null);
         setMessage({ type: 'success', text: 'อัพโหลดรูปภาพสำเร็จ! กรุณากด "บันทึกข้อมูล" เพื่อยืนยันการเปลี่ยนแปลง' });
-      } else {
+      } else if (!isRedirectingRef.current) {
         setMessage({ type: 'error', text: result.error || 'เกิดข้อผิดพลาดในการอัพโหลด' });
         setPreviewUrl(null);
       }
     } catch (error) {
       console.error('Upload error:', error);
-      setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัพโหลด' });
-      setPreviewUrl(null);
+      if (!isRedirectingRef.current) {
+        setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัพโหลด' });
+        setPreviewUrl(null);
+      }
     } finally {
-      setUploading(false);
+      if (!isRedirectingRef.current) {
+        setUploading(false);
+      }
     }
   };
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Prevent multiple submissions
+    if (isRedirectingRef.current) return;
+
     setSaving(true);
     setMessage(null);
 
@@ -156,10 +185,14 @@ export default function ProfilePage() {
         firstName: formData.firstName,
         lastName: formData.lastName,
         username: formData.username,
-        phoneNumber: formData.phoneNumber,
-        role: formData.role,
-        userGroup: formData.userGroup
+        phoneNumber: formData.phoneNumber
       };
+
+      // เฉพาะ HeadOffice เท่านั้นที่สามารถแก้ไข role และ userGroup ได้
+      if (session?.user?.userGroup === 'HeadOffice') {
+        updateData.role = formData.role;
+        updateData.userGroup = formData.userGroup;
+      }
 
       // Include profile image if it was updated
       if (profile?.profileImage) {
@@ -179,27 +212,49 @@ export default function ProfilePage() {
         body: JSON.stringify(updateData),
       });
 
-      const result = await response.json();
-
+      // ถ้าบันทึกสำเร็จ → logout และ redirect ไป login
       if (response.ok) {
-        // Clear any existing messages before redirect to prevent flash
-        setMessage(null);
+        isRedirectingRef.current = true;
 
-        // Immediate redirect without state updates to prevent conflicts
-        router.replace('/dashboard');
-        return;
-      } else {
-        setMessage({ type: 'error', text: result.error || 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล กรุณาลองใหม่อีกครั้ง' });
+        // ซ่อน error overlay ของ Next.js (ถ้ามี)
+        if (typeof window !== 'undefined') {
+          const errorOverlay = document.querySelector('nextjs-portal');
+          if (errorOverlay) {
+            errorOverlay.remove();
+          }
+        }
+
+        // Logout และ redirect ไป login page พร้อมข้อความ
+        await signOut({
+          callbackUrl: '/login?message=อัปเดตข้อมูลสำเร็จ กรุณาเข้าสู่ระบบอีกครั้งเพื่อดูการเปลี่ยนแปลง',
+          redirect: true
+        });
+
+        // Throw error เพื่อหยุดการทำงานทันที
+        throw new Error('REDIRECTING');
       }
-    } catch (error) {
+
+      // Only parse JSON and update state for error cases
+      if (!isRedirectingRef.current) {
+        const result = await response.json();
+        setMessage({ type: 'error', text: result.error || 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล' });
+        setSaving(false);
+      }
+    } catch (error: any) {
+      // ไม่แสดง error ถ้ากำลัง redirect
+      if (error?.message === 'REDIRECTING') {
+        return;
+      }
+
       console.error('Error updating profile:', error);
-      setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล' });
-    } finally {
-      setSaving(false);
+      if (!isRedirectingRef.current) {
+        setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล' });
+        setSaving(false);
+      }
     }
   };
 
-  if (loading) {
+  if (loading || status === 'loading') {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -225,7 +280,7 @@ export default function ProfilePage() {
             <Avatar className="h-20 w-20">
               <AvatarImage src={previewUrl || profile.profileImage} alt="Profile" />
               <AvatarFallback className="bg-navy-600 text-white text-lg">
-                {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
+                {(profile.firstName?.charAt(0) || 'U').toUpperCase()}{(profile.lastName?.charAt(0) || 'U').toUpperCase()}
               </AvatarFallback>
             </Avatar>
             {/* Upload button overlay */}
@@ -320,7 +375,7 @@ export default function ProfilePage() {
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={previewUrl || profile.profileImage} alt="Preview" />
                     <AvatarFallback className="bg-navy-600 text-white">
-                      {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
+                      {(profile.firstName?.charAt(0) || 'U').toUpperCase()}{(profile.lastName?.charAt(0) || 'U').toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
@@ -362,8 +417,8 @@ export default function ProfilePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-{message && (
-                  <Alert key={message.type} className={`mb-6 ${message.type === 'success' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                {message && (
+                  <Alert className={`mb-6 ${message.type === 'success' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                     {message.type === 'success' ? (
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                     ) : (
@@ -420,27 +475,45 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="userGroup">กลุ่มผู้ใช้</Label>
-                      <Select
-                        value={formData.userGroup}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, userGroup: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="เลือกกลุ่มผู้ใช้" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="HeadOffice">HeadOffice</SelectItem>
-                          <SelectItem value="Dealer">Dealer</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {session?.user?.userGroup === 'HeadOffice' ? (
+                        <Select
+                          value={formData.userGroup}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, userGroup: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="เลือกกลุ่มผู้ใช้" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="HeadOffice">HeadOffice</SelectItem>
+                            <SelectItem value="Dealer">Dealer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id="userGroup"
+                          value={formData.userGroup}
+                          readOnly
+                          className="bg-gray-50 cursor-not-allowed"
+                        />
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="role">บทบาท</Label>
-                      <Input
-                        id="role"
-                        value={formData.role}
-                        onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                        required
-                      />
+                      {session?.user?.userGroup === 'HeadOffice' ? (
+                        <Input
+                          id="role"
+                          value={formData.role}
+                          onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
+                          required
+                        />
+                      ) : (
+                        <Input
+                          id="role"
+                          value={formData.role}
+                          readOnly
+                          className="bg-gray-50 cursor-not-allowed"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -475,9 +548,7 @@ export default function ProfilePage() {
                       type="button"
                       variant="outline"
                       disabled={saving}
-                      onClick={() => {
-                        router.push('/dashboard');
-                      }}
+                      onClick={() => router.push('/dashboard')}
                     >
                       ยกเลิก
                     </Button>

@@ -32,23 +32,6 @@ export async function GET(
             phoneNumber: true
           }
         },
-        sales: {
-          include: {
-            items: {
-              include: {
-                rawMaterial: true
-              }
-            }
-          },
-          orderBy: {
-            saleDate: 'desc'
-          }
-        },
-        products: {
-          orderBy: {
-            createdAt: 'desc'
-          }
-        },
         warranties: {
           include: {
             product: true
@@ -98,6 +81,7 @@ export async function PUT(
       dealerCode,
       manufacturerNumber,
       dealerName,
+      type,
       region,
       address,
       phoneNumber,
@@ -137,6 +121,7 @@ export async function PUT(
         dealerCode,
         manufacturerNumber,
         dealerName,
+        type: type || 'ตัวแทนจำหน่าย',
         region,
         address,
         phoneNumber,
@@ -155,8 +140,6 @@ export async function PUT(
         _count: {
           select: {
             users: true,
-            sales: true,
-            products: true,
             warranties: true
           }
         }
@@ -197,8 +180,6 @@ export async function DELETE(
       where: { id },
       include: {
         users: true,
-        sales: true,
-        products: true,
         warranties: true
       }
     })
@@ -213,13 +194,11 @@ export async function DELETE(
     // ตรวจสอบว่ามีข้อมูลที่เกี่ยวข้องหรือไม่
     const hasRelatedData =
       existingDealer.users.length > 0 ||
-      existingDealer.sales.length > 0 ||
-      existingDealer.products.length > 0 ||
       existingDealer.warranties.length > 0
 
     if (hasRelatedData) {
       return NextResponse.json(
-        { error: 'Cannot delete dealer with related data (users, sales, products, or warranties)' },
+        { error: 'Cannot delete dealer with related data (users or warranties)' },
         { status: 400 }
       )
     }

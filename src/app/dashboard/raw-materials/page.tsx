@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Package, Search, AlertTriangle, TrendingUp, Building2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Package, Search, AlertTriangle, TrendingUp } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import { DatePicker } from '@/components/ui/date-picker'
 
 interface RawMaterial {
   id: string
@@ -19,32 +20,19 @@ interface RawMaterial {
   batchNumber?: string
   currentStock: number
   minStock: number
-  dealerId: string
-  dealer: {
-    id: string
-    dealerCode: string
-    dealerName: string
-  }
   _count: {
     saleItems: number
   }
   createdAt: string
 }
 
-interface Dealer {
-  id: string
-  dealerCode: string
-  dealerName: string
-}
 
 export default function RawMaterialsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [materials, setMaterials] = useState<RawMaterial[]>([])
-  const [dealers, setDealers] = useState<Dealer[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedDealer, setSelectedDealer] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null)
   const [showStockForm, setShowStockForm] = useState(false)
@@ -59,9 +47,8 @@ export default function RawMaterialsPage() {
     location: '',
     expiryDate: '',
     batchNumber: '',
-    dealerId: '',
     minStock: '',
-    currentStock: ''
+    currentStock: '0'
   })
   const [stockData, setStockData] = useState({
     action: 'add',
@@ -77,10 +64,7 @@ export default function RawMaterialsPage() {
     }
 
     fetchMaterials()
-    if (session.user.userGroup === 'HeadOffice') {
-      fetchDealers()
-    }
-  }, [session, status, router, selectedDealer])
+  }, [session, status, router])
 
   const fetchMaterials = async () => {
     try {
@@ -91,9 +75,6 @@ export default function RawMaterialsPage() {
         params.append('search', searchTerm)
       }
 
-      if (selectedDealer && session?.user.userGroup === 'HeadOffice') {
-        params.append('dealerId', selectedDealer)
-      }
 
       if (params.toString()) {
         url += `?${params.toString()}`
@@ -111,17 +92,6 @@ export default function RawMaterialsPage() {
     }
   }
 
-  const fetchDealers = async () => {
-    try {
-      const response = await fetch('/api/dealers')
-      const data = await response.json()
-      if (response.ok) {
-        setDealers(data.dealers)
-      }
-    } catch (error) {
-      console.error('Error fetching dealers:', error)
-    }
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -200,7 +170,6 @@ export default function RawMaterialsPage() {
       location: material.location || '',
       expiryDate: material.expiryDate ? new Date(material.expiryDate).toISOString().split('T')[0] : '',
       batchNumber: material.batchNumber || '',
-      dealerId: material.dealerId,
       minStock: material.minStock.toString(),
       currentStock: material.currentStock.toString()
     })
@@ -243,9 +212,8 @@ export default function RawMaterialsPage() {
       location: '',
       expiryDate: '',
       batchNumber: '',
-      dealerId: session?.user.userGroup === 'Dealer' ? session.user.dealerId || '' : '',
       minStock: '',
-      currentStock: ''
+      currentStock: '0'
     })
   }
 
@@ -292,7 +260,7 @@ export default function RawMaterialsPage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
                 <Package className="h-8 w-8 text-blue-600" />
@@ -322,17 +290,6 @@ export default function RawMaterialsPage() {
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <Building2 className="h-8 w-8 text-purple-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-500">ตัวแทนที่ใช้</p>
-                  <p className="text-2xl font-semibold text-gray-900">
-                    {new Set(materials.map(m => m.dealerId)).size}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -349,22 +306,6 @@ export default function RawMaterialsPage() {
                   />
                 </div>
               </div>
-              {session?.user.userGroup === 'HeadOffice' && (
-                <div className="md:w-64">
-                  <select
-                    value={selectedDealer}
-                    onChange={(e) => setSelectedDealer(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                  >
-                    <option value="">ทุกตัวแทนจำหน่าย</option>
-                    {dealers.map((dealer) => (
-                      <option key={dealer.id} value={dealer.id}>
-                        {dealer.dealerCode} - {dealer.dealerName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
           </div>
 
@@ -404,14 +345,6 @@ export default function RawMaterialsPage() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     สต็อก
-                  </th>
-                  {session?.user.userGroup === 'HeadOffice' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ตัวแทนจำหน่าย
-                    </th>
-                  )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    การขาย
                   </th>
                   <th className="relative px-6 py-3">
                     <span className="sr-only">Actions</span>
@@ -459,17 +392,6 @@ export default function RawMaterialsPage() {
                           <TrendingUp className="h-4 w-4" />
                         </button>
                       </div>
-                    </td>
-                    {session?.user.userGroup === 'HeadOffice' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div>
-                          <div className="font-medium">{material.dealer.dealerName}</div>
-                          <div className="text-gray-500">{material.dealer.dealerCode}</div>
-                        </div>
-                      </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {material._count.saleItems} ครั้ง
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex space-x-2">
@@ -553,14 +475,16 @@ export default function RawMaterialsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">หน่วย</label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="เช่น กิโลกรัม, ชิ้น, เมตร"
                     required
-                  />
+                  >
+                    <option value="">เลือกหน่วย</option>
+                    <option value="kgs.">kgs.</option>
+                    <option value="liters">liters</option>
+                  </select>
                 </div>
               </div>
 
@@ -582,7 +506,7 @@ export default function RawMaterialsPage() {
                     value={formData.location}
                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="คลัง A, ชั้น 2"
+                    placeholder="HO-PATHUM-1, HO-PATHUM-2"
                   />
                 </div>
               </div>
@@ -590,11 +514,10 @@ export default function RawMaterialsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันหมดอายุ</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={formData.expiryDate}
-                    onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    onChange={(date) => setFormData({ ...formData, expiryDate: date })}
+                    placeholder="เลือกวันหมดอายุ"
                   />
                 </div>
                 <div>
@@ -619,23 +542,6 @@ export default function RawMaterialsPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">ตัวแทนจำหน่าย</label>
-                <select
-                  value={formData.dealerId}
-                  onChange={(e) => setFormData({ ...formData, dealerId: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                  required
-                  disabled={session?.user.userGroup === 'Dealer'}
-                >
-                  <option value="">เลือกตัวแทนจำหน่าย</option>
-                  {dealers.map((dealer) => (
-                    <option key={dealer.id} value={dealer.id}>
-                      {dealer.dealerCode} - {dealer.dealerName}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -645,7 +551,7 @@ export default function RawMaterialsPage() {
                     value={formData.minStock}
                     onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    required
+                    placeholder="ไม่บังคับ"
                   />
                 </div>
                 <div>
@@ -655,6 +561,7 @@ export default function RawMaterialsPage() {
                     value={formData.currentStock}
                     onChange={(e) => setFormData({ ...formData, currentStock: e.target.value })}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="0"
                     required
                   />
                 </div>

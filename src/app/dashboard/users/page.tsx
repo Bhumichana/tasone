@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, Users, Search } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, Search, CheckCircle, XCircle } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 
 interface User {
@@ -14,12 +14,15 @@ interface User {
   firstName: string
   lastName: string
   phoneNumber: string
+  email?: string
+  lineId?: string
   dealerId?: string
   dealer?: {
     dealerName: string
     dealerCode: string
   }
   profileImage?: string
+  isActive: boolean
   createdAt: string
 }
 
@@ -48,6 +51,8 @@ export default function UsersPage() {
     firstName: '',
     lastName: '',
     phoneNumber: '',
+    email: '',
+    lineId: '',
     dealerId: '',
     profileImage: ''
   })
@@ -185,6 +190,8 @@ export default function UsersPage() {
       firstName: user.firstName,
       lastName: user.lastName,
       phoneNumber: user.phoneNumber,
+      email: user.email || '',
+      lineId: user.lineId || '',
       dealerId: user.dealerId || '',
       profileImage: (user as any).profileImage || ''
     })
@@ -213,6 +220,48 @@ export default function UsersPage() {
     }
   }
 
+  const handleApprove = async (userId: string) => {
+    if (!confirm('ต้องการอนุมัติผู้ใช้นี้ให้เข้าใช้งานได้หรือไม่?')) return
+
+    try {
+      const response = await fetch(`/api/users/${userId}/approve`, {
+        method: 'POST',
+      })
+
+      if (response.ok) {
+        fetchUsers()
+        alert('อนุมัติผู้ใช้สำเร็จ')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'ไม่สามารถอนุมัติผู้ใช้ได้')
+      }
+    } catch (error) {
+      console.error('Error approving user:', error)
+      alert('เกิดข้อผิดพลาดในการอนุมัติ')
+    }
+  }
+
+  const handleDeactivate = async (userId: string) => {
+    if (!confirm('ต้องการปิดการใช้งานของผู้ใช้นี้หรือไม่?')) return
+
+    try {
+      const response = await fetch(`/api/users/${userId}/approve`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        fetchUsers()
+        alert('ปิดการใช้งานสำเร็จ')
+      } else {
+        const error = await response.json()
+        alert(error.error || 'ไม่สามารถปิดการใช้งานได้')
+      }
+    } catch (error) {
+      console.error('Error deactivating user:', error)
+      alert('เกิดข้อผิดพลาดในการปิดการใช้งาน')
+    }
+  }
+
   const resetForm = () => {
     setFormData({
       username: '',
@@ -222,6 +271,8 @@ export default function UsersPage() {
       firstName: '',
       lastName: '',
       phoneNumber: '',
+      email: '',
+      lineId: '',
       dealerId: '',
       profileImage: ''
     })
@@ -298,6 +349,9 @@ export default function UsersPage() {
                       กลุ่ม/บทบาท
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      สถานะ
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ข้อมูลติดต่อ
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -347,8 +401,25 @@ export default function UsersPage() {
                           <div className="text-sm text-gray-500 mt-1">{user.role}</div>
                         </div>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          user.isActive
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {user.isActive ? 'ใช้งานได้' : 'รออนุมัติ'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {user.phoneNumber}
+                        <div>
+                          <div className="text-sm font-medium">{user.phoneNumber}</div>
+                          {user.email && (
+                            <div className="text-sm text-gray-500">{user.email}</div>
+                          )}
+                          {user.lineId && (
+                            <div className="text-sm text-blue-600">LINE: {user.lineId}</div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {user.dealer ? (
@@ -361,18 +432,40 @@ export default function UsersPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="text-indigo-600 hover:text-indigo-900 mr-3"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          {!user.isActive && (
+                            <button
+                              onClick={() => handleApprove(user.id)}
+                              className="text-green-600 hover:text-green-900"
+                              title="อนุมัติผู้ใช้"
+                            >
+                              <CheckCircle className="h-5 w-5" />
+                            </button>
+                          )}
+                          {user.isActive && user.id !== session?.user.id && (
+                            <button
+                              onClick={() => handleDeactivate(user.id)}
+                              className="text-orange-600 hover:text-orange-900"
+                              title="ปิดการใช้งาน"
+                            >
+                              <XCircle className="h-5 w-5" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleEdit(user)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                            title="แก้ไข"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="ลบ"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -426,6 +519,25 @@ export default function UsersPage() {
                   required={!editingUser}
                 />
               </div>
+
+              {formData.userGroup === 'Dealer' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">ตัวแทนจำหน่าย</label>
+                  <select
+                    value={formData.dealerId}
+                    onChange={(e) => setFormData({ ...formData, dealerId: e.target.value })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    required
+                  >
+                    <option value="">เลือกตัวแทนจำหน่าย</option>
+                    {dealers.map((dealer) => (
+                      <option key={dealer.id} value={dealer.id}>
+                        {dealer.dealerName} ({dealer.dealerCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700">กลุ่มผู้ใช้</label>
@@ -488,6 +600,29 @@ export default function UsersPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">อีเมล</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="example@email.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">LINE ID</label>
+                  <input
+                    type="text"
+                    value={formData.lineId}
+                    onChange={(e) => setFormData({ ...formData, lineId: e.target.value })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="@lineid หรือ userid"
+                  />
+                </div>
+              </div>
+
               {/* Profile Image Upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">รูปประจำตัว</label>
@@ -533,25 +668,6 @@ export default function UsersPage() {
                   </div>
                 </div>
               </div>
-
-              {formData.userGroup === 'Dealer' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">ตัวแทนจำหน่าย</label>
-                  <select
-                    value={formData.dealerId}
-                    onChange={(e) => setFormData({ ...formData, dealerId: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    required
-                  >
-                    <option value="">เลือกตัวแทนจำหน่าย</option>
-                    {dealers.map((dealer) => (
-                      <option key={dealer.id} value={dealer.id}>
-                        {dealer.dealerName} ({dealer.dealerCode})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div className="flex justify-end space-x-3 pt-4">
                 <button

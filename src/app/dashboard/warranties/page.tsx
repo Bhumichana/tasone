@@ -21,6 +21,15 @@ import {
   CheckCircle
 } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import { DatePicker } from '@/components/ui/date-picker'
+import MaterialUsageTable from '@/components/warranties/MaterialUsageTable'
+import {
+  calculateMaterialUsage,
+  calculateMaterialUsageFromDealerStock,
+  serializeMaterialUsage,
+  MaterialUsageItem,
+  DealerStockItem
+} from '@/lib/recipe-calculator'
 
 interface Warranty {
   id: string
@@ -41,6 +50,15 @@ interface Warranty {
   expiryDate: string
   warrantyPeriodMonths: number
   warrantyTerms?: string
+  // ฟิลด์ใหม่
+  dealerName?: string
+  productionDate?: string
+  deliveryDate?: string
+  purchaseOrderNo?: string
+  installationArea?: number
+  thickness?: number
+  chemicalBatchNo?: string
+  materialUsage?: string  // ข้อมูลวัตถุดิบที่ใช้ (JSON string)
   dealerId: string
   dealer: {
     id: string
@@ -56,6 +74,8 @@ interface Product {
   productName: string
   serialNumber?: string
   category: string
+  thickness?: number
+  warrantyTerms?: string
 }
 
 interface Dealer {
@@ -64,12 +84,22 @@ interface Dealer {
   dealerName: string
 }
 
+interface SubDealer {
+  id: string
+  name: string
+  address?: string
+  phoneNumber?: string
+  email?: string
+  dealerId: string
+}
+
 export default function WarrantiesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [warranties, setWarranties] = useState<Warranty[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [dealers, setDealers] = useState<Dealer[]>([])
+  const [subDealers, setSubDealers] = useState<SubDealer[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDealer, setSelectedDealer] = useState('')
@@ -88,8 +118,25 @@ export default function WarrantiesPage() {
     customerAddress: '',
     warrantyDate: new Date().toISOString().split('T')[0],
     warrantyPeriodMonths: 12,
-    warrantyTerms: ''
+    warrantyTerms: '',
+    // ฟิลด์ใหม่
+    warrantyNumber: '',       // เพิ่ม: หมายเลขใบรับประกัน (auto-generate)
+    dealerName: '',
+    subDealerId: '',          // เพิ่ม: ID ของผู้ขายรายย่อย
+    manufacturerNumber: '',   // เปลี่ยนจาก dealerCode เป็น manufacturerNumber
+    productionDate: '',
+    deliveryDate: '',
+    purchaseOrderNo: '',
+    installationArea: '',
+    thickness: '',
+    chemicalBatchNo: ''
   })
+
+  // State สำหรับ BOM และการคำนวณวัตถุดิบ
+  const [selectedProductRecipe, setSelectedProductRecipe] = useState<any>(null)
+  const [calculatedMaterials, setCalculatedMaterials] = useState<MaterialUsageItem[]>([])
+  const [selectedProductDetails, setSelectedProductDetails] = useState<Product | null>(null)
+  const [dealerStocks, setDealerStocks] = useState<DealerStockItem[]>([]) // สต็อกของดีลเลอร์
 
   useEffect(() => {
     if (status === 'loading') return
@@ -102,6 +149,11 @@ export default function WarrantiesPage() {
     fetchProducts()
     if (session.user.userGroup === 'HeadOffice') {
       fetchDealers()
+    }
+    // ดึงสต็อกของดีลเลอร์เมื่อโหลดหน้าครั้งแรก
+    if (session.user.userGroup === 'Dealer' && session.user.dealerId) {
+      fetchDealerStock()
+      fetchSubDealers() // ดึงรายชื่อ Sub-dealers ของ Dealer
     }
   }, [session, status, router, searchTerm, selectedDealer, statusFilter, dateFrom, dateTo])
 
@@ -158,6 +210,128 @@ export default function WarrantiesPage() {
     }
   }
 
+  const fetchSubDealers = async () => {
+    try {
+      const response = await fetch('/api/sub-dealers')
+      const data = await response.json()
+      if (response.ok) {
+        setSubDealers(data.subDealers)
+      }
+    } catch (error) {
+      console.error('Error fetching sub-dealers:', error)
+    }
+  }
+
+  // ดึงสต็อกของดีลเลอร์
+  const fetchDealerStock = async () => {
+    try {
+      const dealerId = session?.user.dealerId
+      if (!dealerId) {
+        return
+      }
+
+      const response = await fetch(`/api/dealer-stock?availableOnly=true`)
+      const data = await response.json()
+
+      if (response.ok) {
+        setDealerStocks(data.stocks || [])
+      } else {
+        setDealerStocks([])
+      }
+    } catch (error) {
+      console.error('Error fetching dealer stock:', error)
+      setDealerStocks([])
+    }
+  }
+
+  // ดึงสูตร BOM ของสินค้า
+  const fetchProductRecipe = async (productId: string) => {
+    try {
+      const response = await fetch(`/api/products/${productId}/recipe`)
+      const data = await response.json()
+      if (response.ok && data.recipe) {
+        setSelectedProductRecipe(data.recipe)
+      } else {
+        setSelectedProductRecipe(null)
+      }
+    } catch (error) {
+      console.error('Error fetching product recipe:', error)
+      setSelectedProductRecipe(null)
+    }
+  }
+
+  // useEffect: ดึงสูตรและข้อมูลสินค้าเมื่อเลือกสินค้า
+  useEffect(() => {
+    if (formData.productId) {
+      fetchProductRecipe(formData.productId)
+
+      // ดึงข้อมูลสินค้า
+      const product = products.find(p => p.id === formData.productId)
+      if (product) {
+        setSelectedProductDetails(product)
+
+        // อัปเดต thickness และ warrantyTerms จากสินค้า
+        setFormData(prev => ({
+          ...prev,
+          thickness: product.thickness?.toString() || '',
+          warrantyTerms: product.warrantyTerms || ''
+        }))
+      }
+    } else {
+      setSelectedProductRecipe(null)
+      setCalculatedMaterials([])
+      setSelectedProductDetails(null)
+    }
+  }, [formData.productId, products])
+
+  // useEffect: คำนวณวัตถุดิบเมื่อมีพื้นที่ติดตั้ง (ใช้สต็อกจาก DealerStock)
+  useEffect(() => {
+    if (selectedProductRecipe && formData.installationArea && dealerStocks.length > 0) {
+      const area = parseFloat(formData.installationArea)
+      if (area > 0) {
+        const materials = calculateMaterialUsageFromDealerStock(
+          selectedProductRecipe,
+          area,
+          dealerStocks
+        )
+        setCalculatedMaterials(materials)
+      } else {
+        setCalculatedMaterials([])
+      }
+    } else {
+      setCalculatedMaterials([])
+    }
+  }, [selectedProductRecipe, formData.installationArea, dealerStocks])
+
+  // useEffect: อัพเดต chemicalBatchNo อัตโนมัติจาก calculatedMaterials
+  useEffect(() => {
+    if (calculatedMaterials.length > 0) {
+      // ดึง batch numbers ทั้งหมดที่ไม่ซ้ำกัน
+      const batchNumbers = calculatedMaterials
+        .map(material => material.batchNumber)
+        .filter(batch => batch && batch.trim() !== '') // กรองเฉพาะที่มีค่า
+
+      // รวม batch numbers ด้วย comma
+      const combinedBatchNo = [...new Set(batchNumbers)].join(', ')
+
+      // อัพเดตลงในฟอร์ม
+      setFormData(prev => ({
+        ...prev,
+        chemicalBatchNo: combinedBatchNo
+      }))
+    }
+  }, [calculatedMaterials])
+
+  // Helper function to format date as dd/mm/yyyy
+  const formatDateToDDMMYYYY = (dateString: string): string => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    const day = String(date.getDate()).padStart(2, '0')
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const year = date.getFullYear()
+    return `${day}/${month}/${year}`
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -171,7 +345,10 @@ export default function WarrantiesPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          materialUsage: calculatedMaterials.length > 0 ? serializeMaterialUsage(calculatedMaterials) : null
+        }),
       })
 
       if (response.ok) {
@@ -191,8 +368,22 @@ export default function WarrantiesPage() {
     }
   }
 
-  const handleEdit = (warranty: Warranty) => {
+  // Helper function to convert date to yyyy-mm-dd format for DatePicker
+  const formatDateForInput = (dateString: string): string => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const handleEdit = async (warranty: Warranty) => {
     setEditingWarranty(warranty)
+
+    // ดึงข้อมูลสินค้าเพื่อเซ็ต thickness และ warrantyTerms
+    const product = products.find(p => p.id === warranty.productId)
+
     setFormData({
       productId: warranty.productId,
       customerName: warranty.customerName,
@@ -201,8 +392,20 @@ export default function WarrantiesPage() {
       customerAddress: warranty.customerAddress,
       warrantyDate: new Date(warranty.warrantyDate).toISOString().split('T')[0],
       warrantyPeriodMonths: warranty.warrantyPeriodMonths,
-      warrantyTerms: warranty.warrantyTerms || ''
+      warrantyTerms: product?.warrantyTerms || warranty.warrantyTerms || '',  // ดึงจาก product
+      // ฟิลด์ใหม่
+      warrantyNumber: warranty.warrantyNumber || '',
+      dealerName: warranty.dealerName || '',
+      manufacturerNumber: warranty.dealer.manufacturerNumber || '',
+      productionDate: warranty.productionDate ? formatDateForInput(warranty.productionDate) : '',
+      deliveryDate: warranty.deliveryDate ? formatDateForInput(warranty.deliveryDate) : '',
+      purchaseOrderNo: warranty.purchaseOrderNo || '',
+      installationArea: warranty.installationArea?.toString() || '',
+      thickness: product?.thickness?.toString() || warranty.thickness?.toString() || '',  // ดึงจาก product
+      chemicalBatchNo: warranty.chemicalBatchNo || ''
     })
+    // ดึงสต็อกของดีลเลอร์เพื่อใช้ในการคำนวณวัตถุดิบ
+    await fetchDealerStock()
     setShowAddForm(true)
   }
 
@@ -228,15 +431,20 @@ export default function WarrantiesPage() {
 
   const handlePrintWarranty = async (warrantyId: string) => {
     try {
-      const response = await fetch(`/api/warranties/${warrantyId}/print`)
+      const response = await fetch(`/api/warranties/${warrantyId}/pdf`)
       if (response.ok) {
         const blob = await response.blob()
         const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `warranty_${warrantyId}.pdf`
-        link.click()
-        window.URL.revokeObjectURL(url)
+
+        // เปิด PDF ในแท็บใหม่เพื่อให้พิมพ์ได้
+        window.open(url, '_blank')
+
+        // หรือดาวน์โหลดโดยตรง
+        // const link = document.createElement('a')
+        // link.href = url
+        // link.download = `warranty_${warrantyId}.pdf`
+        // link.click()
+        // window.URL.revokeObjectURL(url)
       } else {
         alert('ไม่สามารถสร้าง PDF ได้')
       }
@@ -255,7 +463,18 @@ export default function WarrantiesPage() {
       customerAddress: '',
       warrantyDate: new Date().toISOString().split('T')[0],
       warrantyPeriodMonths: 12,
-      warrantyTerms: ''
+      warrantyTerms: '',
+      // ฟิลด์ใหม่
+      warrantyNumber: '',        // เคลียร์หมายเลขใบรับประกัน
+      dealerName: '',
+      subDealerId: '',           // เคลียร์ผู้ขายรายย่อย
+      manufacturerNumber: '',    // เคลียร์รหัสผู้ผลิต (เปลี่ยนจาก dealerCode)
+      productionDate: '',
+      deliveryDate: '',
+      purchaseOrderNo: '',
+      installationArea: '',
+      thickness: '',
+      chemicalBatchNo: ''
     })
   }
 
@@ -303,8 +522,36 @@ export default function WarrantiesPage() {
               <h1 className="text-2xl font-bold text-navy-900">จัดการใบรับประกัน</h1>
             </div>
             <button
-              onClick={() => {
+              onClick={async () => {
                 resetForm()
+                // ดึงข้อมูล dealer เพื่อแสดงในฟอร์ม
+                if (session?.user.dealerId) {
+                  try {
+                    const dealerResponse = await fetch(`/api/dealers/${session.user.dealerId}`)
+                    const dealerData = await dealerResponse.json()
+
+                    if (dealerResponse.ok && dealerData.dealer) {
+                      // สร้างหมายเลขใบรับประกันใหม่ (format: DealerCode-DDMMYYYY-XXX)
+                      const today = new Date()
+                      const dd = String(today.getDate()).padStart(2, '0')
+                      const mm = String(today.getMonth() + 1).padStart(2, '0')
+                      const yyyy = today.getFullYear()
+                      const count = warranties.length + 1
+                      const newWarrantyNumber = `${dealerData.dealer.dealerCode}-${dd}${mm}${yyyy}-${String(count).padStart(3, '0')}`
+
+                      setFormData(prev => ({
+                        ...prev,
+                        dealerName: dealerData.dealer.dealerName || '',
+                        manufacturerNumber: dealerData.dealer.manufacturerNumber || '',  // เปลี่ยน
+                        warrantyNumber: newWarrantyNumber
+                      }))
+                    }
+                  } catch (error) {
+                    console.error('Error fetching dealer:', error)
+                  }
+                }
+                // ดึงสต็อกของดีลเลอร์เพื่อใช้ในการคำนวณวัตถุดิบ
+                await fetchDealerStock()
                 setShowAddForm(true)
               }}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-navy-900 hover:bg-navy-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200"
@@ -412,21 +659,21 @@ export default function WarrantiesPage() {
               </select>
             )}
 
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              placeholder="จากวันที่"
-              className="py-2 px-3 border border-gray-300 rounded-md"
-            />
+            <div>
+              <DatePicker
+                value={dateFrom}
+                onChange={(date) => setDateFrom(date)}
+                placeholder="จากวันที่"
+              />
+            </div>
 
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              placeholder="ถึงวันที่"
-              className="py-2 px-3 border border-gray-300 rounded-md"
-            />
+            <div>
+              <DatePicker
+                value={dateTo}
+                onChange={(date) => setDateTo(date)}
+                placeholder="ถึงวันที่"
+              />
+            </div>
           </div>
 
           {/* Warranties Table */}
@@ -584,6 +831,31 @@ export default function WarrantiesPage() {
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* หมายเลขใบรับประกัน - Auto Generated */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">หมายเลขใบรับประกัน</label>
+                  <input
+                    type="text"
+                    value={formData.warrantyNumber}
+                    readOnly
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-blue-50 font-bold text-blue-900 cursor-not-allowed"
+                    placeholder="สร้างอัตโนมัติ"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">*ระบบจะสร้างหมายเลขให้อัตโนมัติ</p>
+                </div>
+
+                {/* รหัสผู้ผลิต (manufacturerNumber) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">รหัสผู้ผลิต</label>
+                  <input
+                    type="text"
+                    value={formData.manufacturerNumber}
+                    readOnly
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 font-semibold cursor-not-allowed"
+                    placeholder="หมายเลขผู้ผลิต"
+                  />
+                </div>
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700">สินค้า</label>
                   <select
@@ -595,7 +867,7 @@ export default function WarrantiesPage() {
                     <option value="">เลือกสินค้า</option>
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>
-                        {product.productName} ({product.productCode}) 
+                        {product.productName} ({product.productCode})
                         {product.serialNumber && ` - S/N: ${product.serialNumber}`}
                       </option>
                     ))}
@@ -637,12 +909,10 @@ export default function WarrantiesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่ออกใบรับประกัน</label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={formData.warrantyDate}
-                    onChange={(e) => setFormData({ ...formData, warrantyDate: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    required
+                    onChange={(date) => setFormData({ ...formData, warrantyDate: date })}
+                    placeholder="เลือกวันที่ออกใบรับประกัน"
                   />
                 </div>
 
@@ -658,10 +928,122 @@ export default function WarrantiesPage() {
                     required
                   />
                 </div>
+
+                {/* ฟิลด์ใหม่ */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">ชื่อผู้จำหน่าย</label>
+                  <input
+                    type="text"
+                    value={formData.dealerName}
+                    readOnly
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 cursor-not-allowed"
+                    placeholder="ดึงจากข้อมูลผู้ใช้"
+                  />
+                </div>
+
+                {/* ฟิลด์ผู้ขายรายย่อย (เฉพาะ Dealer) */}
+                {session?.user.userGroup === 'Dealer' && subDealers.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      ชื่อผู้ขายรายย่อย (ถ้ามี)
+                    </label>
+                    <select
+                      value={formData.subDealerId}
+                      onChange={(e) => setFormData({ ...formData, subDealerId: e.target.value })}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    >
+                      <option value="">ไม่ระบุ (ขายโดยตัวแทนจำหน่ายเอง)</option>
+                      {subDealers.map((subDealer) => (
+                        <option key={subDealer.id} value={subDealer.id}>
+                          {subDealer.name}
+                          {subDealer.phoneNumber ? ` - ${subDealer.phoneNumber}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      เลือกผู้ขายรายย่อยที่ขายสินค้าให้กับลูกค้า (สามารถเว้นว่างได้)
+                    </p>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">เลขที่ใบสั่งซื้อ</label>
+                  <input
+                    type="text"
+                    value={formData.purchaseOrderNo}
+                    onChange={(e) => setFormData({ ...formData, purchaseOrderNo: e.target.value })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="ไม่บังคับ"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">วันที่ผลิต</label>
+                  <DatePicker
+                    value={formData.productionDate}
+                    onChange={(date) => setFormData({ ...formData, productionDate: date })}
+                    placeholder="เลือกวันที่ผลิต"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">วันที่ส่งมอบ</label>
+                  <DatePicker
+                    value={formData.deliveryDate}
+                    onChange={(date) => setFormData({ ...formData, deliveryDate: date })}
+                    placeholder="เลือกวันที่ส่งมอบ"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">พื้นที่ติดตั้งฉนวน (ตารางเมตร)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.installationArea}
+                    onChange={(e) => setFormData({ ...formData, installationArea: e.target.value })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="ไม่บังคับ"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">ความหนา (มิลลิเมตร)</label>
+                  <input
+                    type="text"
+                    value={formData.thickness ? `${formData.thickness} มม.` : 'ไม่ระบุ'}
+                    readOnly
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 cursor-not-allowed"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">*ดึงจากข้อมูลสินค้า</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">หมายเลข Batch สารเคมี</label>
+                  <input
+                    type="text"
+                    value={formData.chemicalBatchNo}
+                    readOnly
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 cursor-not-allowed"
+                    placeholder="ดึงจากตารางวัตถุดิบอัตโนมัติ"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">*ดึงจาก Batch Number ของวัตถุดิบที่ใช้อัตโนมัติ</p>
+                </div>
+
+                {/* Material Usage Table - แสดงเมื่อมีการคำนวณวัตถุดิบ */}
+                {calculatedMaterials.length > 0 && formData.installationArea && (
+                  <div className="md:col-span-2">
+                    <MaterialUsageTable
+                      materialUsage={calculatedMaterials}
+                      installationArea={parseFloat(formData.installationArea)}
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">ที่อยู่ลูกค้า</label>
+                <label className="block text-sm font-medium text-gray-700">สถานที่ติดตั้ง</label>
                 <textarea
                   value={formData.customerAddress}
                   onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
@@ -674,33 +1056,54 @@ export default function WarrantiesPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700">เงื่อนไขการรับประกัน</label>
                 <textarea
-                  value={formData.warrantyTerms}
-                  onChange={(e) => setFormData({ ...formData, warrantyTerms: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  value={formData.warrantyTerms || 'ไม่ระบุเงื่อนไข'}
+                  readOnly
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 cursor-not-allowed"
                   rows={4}
-                  placeholder="เงื่อนไขและข้อกำหนดการรับประกัน (ไม่บังคับ)"
                 />
+                <p className="mt-1 text-xs text-gray-500">*ดึงจากข้อมูลสินค้า ไม่สามารถแก้ไขได้</p>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddForm(false)
-                    setEditingWarranty(null)
-                    resetForm()
-                  }}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 disabled:opacity-50"
-                >
-                  {loading ? 'กำลังบันทึก...' : (editingWarranty ? 'บันทึก' : 'ออกใบรับประกัน')}
-                </button>
+              <div className="pt-4">
+                {/* แสดงข้อความเตือนเมื่อสต็อกไม่พอ */}
+                {calculatedMaterials.length > 0 && !calculatedMaterials.every(m => m.isStockSufficient) && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <div className="flex items-start">
+                      <svg className="h-5 w-5 text-red-600 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-red-800">
+                          ไม่สามารถออกใบรับประกันได้
+                        </p>
+                        <p className="text-xs text-red-700 mt-1">
+                          วัตถุดิบบางรายการมีสต็อกไม่เพียงพอ กรุณาตรวจสอบสต็อกในตารางด้านบนหรือลดพื้นที่ติดตั้ง
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddForm(false)
+                      setEditingWarranty(null)
+                      resetForm()
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || (calculatedMaterials.length > 0 && !calculatedMaterials.every(m => m.isStockSufficient))}
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? 'กำลังบันทึก...' : (editingWarranty ? 'บันทึก' : 'ออกใบรับประกัน')}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -830,6 +1233,90 @@ export default function WarrantiesPage() {
                 </div>
               )}
 
+              {/* Material Usage Info */}
+              <div>
+                <h4 className="text-md font-medium text-gray-900 mb-3">ข้อมูลวัตถุดิบที่ใช้</h4>
+                {selectedWarranty.materialUsage ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white border border-gray-200 rounded-md text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                            วัตถุดิบ
+                          </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                            ประเภท
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                            ต่อ 1 ตร.ม.
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                            ปริมาณรวม
+                          </th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                            สต็อกขณะทำรายการ
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {(() => {
+                          try {
+                            const materials = JSON.parse(selectedWarranty.materialUsage)
+                            return materials.map((material: any, index: number) => (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-3 py-2">
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {material.materialName}
+                                    </p>
+                                    <p className="text-xs text-gray-500">{material.materialCode}</p>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                    {material.materialType}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right text-sm text-gray-900">
+                                  {material.quantityPerUnit.toFixed(3)} {material.unit}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className="text-sm font-semibold text-gray-900">
+                                    {material.totalQuantity.toFixed(2)} {material.unit}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <span className="text-sm font-medium text-gray-600">
+                                    {material.currentStock.toFixed(2)} {material.unit}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          } catch (error) {
+                            return (
+                              <tr>
+                                <td colSpan={5} className="px-3 py-4 text-center text-sm text-red-600">
+                                  ไม่สามารถแสดงข้อมูลวัตถุดิบได้
+                                </td>
+                              </tr>
+                            )
+                          }
+                        })()}
+                      </tbody>
+                    </table>
+                    {selectedWarranty.installationArea && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        💡 พื้นที่ติดตั้ง: {selectedWarranty.installationArea} ตารางเมตร
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-4 bg-gray-50 rounded-md">
+                    <p className="text-sm text-gray-500">ไม่มีข้อมูลวัตถุดิบที่ใช้</p>
+                  </div>
+                )}
+              </div>
+
               {/* Dealer Info */}
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-3">ตัวแทนจำหน่าย</h4>
@@ -842,10 +1329,16 @@ export default function WarrantiesPage() {
               <div className="flex justify-end space-x-3 pt-4 border-t">
                 <button
                   onClick={() => handlePrintWarranty(selectedWarranty.id)}
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
                 >
                   <Download className="h-4 w-4 mr-2 inline" />
-                  ดาวน์โหลด PDF
+                  พิมพ์ใบรับประกัน
+                </button>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  ปิด
                 </button>
               </div>
             </div>

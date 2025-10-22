@@ -3,6 +3,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
+// ปิด cache เพื่อให้ดึงข้อมูลใหม่ทุกครั้ง
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // GET /api/products - ดึงรายชื่อสินค้าทั้งหมด
 export async function GET(request: NextRequest) {
   try {
@@ -17,20 +21,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
-    const dealerId = searchParams.get('dealerId')
     const category = searchParams.get('category')
 
     const where: any = {}
-
-    // หากเป็น Dealer ให้แสดงเฉพาะสินค้าของตัวเอง
-    if (session.user.userGroup === 'Dealer' && session.user.dealerId) {
-      where.dealerId = session.user.dealerId
-    }
-
-    // หาก HeadOffice และระบุ dealerId
-    if (dealerId && session.user.userGroup === 'HeadOffice') {
-      where.dealerId = dealerId
-    }
 
     // ค้นหาตามชื่อ รหัส หรือหมายเลขซีเรียล
     if (search) {
@@ -49,21 +42,6 @@ export async function GET(request: NextRequest) {
     const products = await prisma.product.findMany({
       where,
       include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        },
-        sale: {
-          select: {
-            id: true,
-            saleNumber: true,
-            customerName: true,
-            saleDate: true
-          }
-        },
         warranties: {
           select: {
             id: true,
@@ -73,6 +51,19 @@ export async function GET(request: NextRequest) {
           },
           orderBy: {
             warrantyDate: 'desc'
+          }
+        },
+        recipe: {
+          select: {
+            id: true,
+            recipeName: true,
+            version: true,
+            isActive: true,
+            _count: {
+              select: {
+                items: true
+              }
+            }
           }
         }
       },
@@ -110,21 +101,9 @@ export async function POST(request: NextRequest) {
       serialNumber,
       category,
       description,
-      dealerId,
-      saleId
+      warrantyTerms,
+      thickness
     } = body
-
-    // ตรวจสอบสิทธิ์
-    const finalDealerId = session.user.userGroup === 'Dealer'
-      ? session.user.dealerId
-      : dealerId
-
-    if (!finalDealerId) {
-      return NextResponse.json(
-        { error: 'Dealer ID is required' },
-        { status: 400 }
-      )
-    }
 
     // ตรวจสอบว่า productCode ซ้ำหรือไม่
     const existingProduct = await prisma.product.findUnique({
@@ -152,67 +131,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ตรวจสอบว่า dealer มีอยู่หรือไม่
-    const dealer = await prisma.dealer.findUnique({
-      where: { id: finalDealerId }
-    })
-
-    if (!dealer) {
-      return NextResponse.json(
-        { error: 'Dealer not found' },
-        { status: 400 }
-      )
-    }
-
-    // ตรวจสอบว่า sale มีอยู่หรือไม่ (ถ้าระบุ)
-    if (saleId) {
-      const sale = await prisma.sale.findUnique({
-        where: { id: saleId }
-      })
-
-      if (!sale) {
-        return NextResponse.json(
-          { error: 'Sale not found' },
-          { status: 400 }
-        )
-      }
-
-      // ตรวจสอบว่า sale เป็นของ dealer นี้หรือไม่
-      if (sale.dealerId !== finalDealerId) {
-        return NextResponse.json(
-          { error: 'Sale does not belong to this dealer' },
-          { status: 400 }
-        )
-      }
-    }
-
     // สร้างสินค้าใหม่
     const newProduct = await prisma.product.create({
       data: {
         productCode,
         productName,
-        serialNumber,
+        serialNumber: serialNumber || null,
         category,
-        description,
-        dealerId: finalDealerId,
-        saleId: saleId || undefined
+        description: description || null,
+        warrantyTerms: warrantyTerms || null,
+        thickness: thickness ? parseFloat(thickness) : null
       },
       include: {
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        },
-        sale: {
-          select: {
-            id: true,
-            saleNumber: true,
-            customerName: true,
-            saleDate: true
-          }
-        },
         warranties: {
           select: {
             id: true,
