@@ -155,6 +155,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Ensure dealerId is defined (TypeScript type guard)
+    const dealerId = session.user.dealerId
+    if (!dealerId) {
+      return NextResponse.json({ error: 'Dealer ID not found' }, { status: 403 })
+    }
+
     const body = await request.json()
     const {
       materialDeliveryId,
@@ -176,7 +182,7 @@ export async function POST(request: NextRequest) {
     const delivery = await prisma.materialDelivery.findFirst({
       where: {
         id: materialDeliveryId,
-        dealerId: session.user.dealerId,
+        dealerId: dealerId,
         status: 'PENDING_RECEIPT' // ต้องเป็นสถานะรอรับเข้า
       }
     })
@@ -205,7 +211,7 @@ export async function POST(request: NextRequest) {
     const lastReceipt = await prisma.dealerReceipt.findFirst({
       where: {
         receiptNumber: {
-          contains: `RCP-${session.user.dealerId}-${dateStr}`
+          contains: `RCP-${dealerId}-${dateStr}`
         }
       },
       orderBy: { receiptNumber: 'desc' }
@@ -217,7 +223,7 @@ export async function POST(request: NextRequest) {
       runningNumber = lastNumber + 1
     }
 
-    const receiptNumber = `RCP-${session.user.dealerId}-${dateStr}-${String(runningNumber).padStart(3, '0')}`
+    const receiptNumber = `RCP-${dealerId}-${dateStr}-${String(runningNumber).padStart(3, '0')}`
 
     // Create receipt with items and update dealer stock
     const result = await prisma.$transaction(async (tx) => {
@@ -226,7 +232,7 @@ export async function POST(request: NextRequest) {
         data: {
           receiptNumber,
           materialDeliveryId,
-          dealerId: session.user.dealerId,
+          dealerId: dealerId,
           receiptDate: new Date(receiptDate),
           receivedBy,
           notes
