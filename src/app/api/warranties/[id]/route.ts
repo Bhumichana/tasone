@@ -27,7 +27,7 @@ function parseDateDDMMYYYY(dateString: string): Date | null {
 // GET /api/warranties/[id] - ดึงข้อมูลใบรับประกันคนเดียว
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -39,6 +39,7 @@ export async function GET(
       )
     }
 
+    const params = await props.params
     const warranty = await prisma.warranty.findUnique({
       where: { id: params.id },
       include: {
@@ -99,7 +100,7 @@ export async function GET(
 // PUT /api/warranties/[id] - แก้ไขข้อมูลใบรับประกัน
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -111,6 +112,7 @@ export async function PUT(
       )
     }
 
+    const params = await props.params
     const body = await request.json()
     const {
       warrantyNumber,
@@ -347,7 +349,7 @@ export async function PUT(
 // DELETE /api/warranties/[id] - ลบใบรับประกัน
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -359,6 +361,7 @@ export async function DELETE(
       )
     }
 
+    const params = await props.params
     // ตรวจสอบว่าใบรับประกันมีอยู่หรือไม่
     const existingWarranty = await prisma.warranty.findUnique({
       where: { id: params.id }

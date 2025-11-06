@@ -24,7 +24,10 @@
       "Bash(timeout:*)",
       "Bash(npm run:*)",
       "Bash(dir)",
-      "Read(//g/**)"
+      "Read(//g/**)",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

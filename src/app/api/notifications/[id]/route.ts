@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db'
 // GET /api/notifications/[id] - ดึงการแจ้งเตือนรายการเดียว
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -19,6 +19,7 @@ export async function GET(
       )
     }
 
+    const params = await props.params
     const notification = await prisma.headOfficeNotification.findUnique({
       where: { id: params.id },
       include: {
@@ -64,7 +65,7 @@ export async function GET(
 // PUT /api/notifications/[id] - อัปเดตสถานะการอ่าน
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -77,6 +78,7 @@ export async function PUT(
       )
     }
 
+    const params = await props.params
     const body = await request.json()
     const { isRead } = body
 
@@ -129,7 +131,7 @@ export async function PUT(
 // DELETE /api/notifications/[id] - ลบการแจ้งเตือน
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -142,6 +144,7 @@ export async function DELETE(
       )
     }
 
+    const params = await props.params
     await prisma.headOfficeNotification.delete({
       where: { id: params.id }
     })

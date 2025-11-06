@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db'
 // POST /api/warranties/[id]/approve-edit - อนุมัติหรือปฏิเสธการแก้ไข (HeadOffice only)
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -19,6 +19,7 @@ export async function POST(
       )
     }
 
+    const params = await props.params
     const body = await request.json()
     const { approved, approvalNote } = body
 

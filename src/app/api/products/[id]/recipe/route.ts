@@ -6,7 +6,7 @@ import { prisma } from '@/lib/db'
 // GET /api/products/[id]/recipe - ดึงสูตรการผลิตของสินค้า
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -18,6 +18,7 @@ export async function GET(
       )
     }
 
+    const params = await props.params
     const { id } = params
     console.log('GET Recipe API - Product ID:', id)
 
@@ -79,7 +80,7 @@ export async function GET(
 // POST /api/products/[id]/recipe - สร้างสูตรการผลิตใหม่
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -114,6 +115,7 @@ export async function POST(
       )
     }
 
+    const params = await props.params
     const { id } = params
     const body = await request.json()
     const { recipeName, description, calculationUnit, items } = body
@@ -188,7 +190,7 @@ export async function POST(
 // PUT /api/products/[id]/recipe - แก้ไขสูตรการผลิต
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -209,6 +211,7 @@ export async function PUT(
       )
     }
 
+    const params = await props.params
     const { id } = params
     const body = await request.json()
     const { recipeName, description, calculationUnit, items } = body
@@ -279,7 +282,7 @@ export async function PUT(
 // DELETE /api/products/[id]/recipe - ลบสูตรการผลิต
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  props: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -300,6 +303,7 @@ export async function DELETE(
       )
     }
 
+    const params = await props.params
     const { id } = params
 
     const existingRecipe = await prisma.productRecipe.findUnique({
