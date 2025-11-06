@@ -30,7 +30,13 @@ export async function GET(request: NextRequest) {
         ? session.user.dealerId
         : dealerId
 
-      const where: any = { dealerId: finalDealerId }
+      const where: any = {}
+
+      // เพิ่ม dealerId เฉพาะเมื่อมีค่า
+      if (finalDealerId) {
+        where.dealerId = finalDealerId
+      }
+
       if (materialType) {
         where.materialType = materialType
       }
@@ -119,12 +125,18 @@ export async function GET(request: NextRequest) {
         const itemsWithUsageRate = await Promise.all(
           lowStockItems.map(async (stock) => {
             // นับจำนวนใบรับประกันที่ใช้วัตถุดิบนี้
+            const warrantyWhere: any = {
+              materialUsage: { not: null },
+              createdAt: { gte: thirtyDaysAgo }
+            }
+
+            // เพิ่ม dealerId เฉพาะเมื่อมีค่า
+            if (finalDealerId) {
+              warrantyWhere.dealerId = finalDealerId
+            }
+
             const warranties = await prisma.warranty.findMany({
-              where: {
-                dealerId: finalDealerId,
-                materialUsage: { not: null },
-                createdAt: { gte: thirtyDaysAgo }
-              },
+              where: warrantyWhere,
               select: {
                 materialUsage: true
               }
@@ -196,12 +208,18 @@ export async function GET(request: NextRequest) {
         const noMovementMaterials: any[] = []
 
         for (const stock of allStocks) {
+          const warrantyWhere: any = {
+            materialUsage: { not: null },
+            createdAt: { gte: thirtyDaysAgo }
+          }
+
+          // เพิ่ม dealerId เฉพาะเมื่อมีค่า
+          if (finalDealerId) {
+            warrantyWhere.dealerId = finalDealerId
+          }
+
           const warranties = await prisma.warranty.findMany({
-            where: {
-              dealerId: finalDealerId,
-              materialUsage: { not: null },
-              createdAt: { gte: thirtyDaysAgo }
-            },
+            where: warrantyWhere,
             select: {
               materialUsage: true
             }
