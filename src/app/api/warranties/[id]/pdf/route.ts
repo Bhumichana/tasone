@@ -563,7 +563,7 @@ export async function GET(
 
     // ส่ง PDF กลับไปให้ client
     console.log('✅ Sending PDF to client')
-    return new NextResponse(pdfBytes, {
+    return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
