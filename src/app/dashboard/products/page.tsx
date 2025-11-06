@@ -430,14 +430,22 @@ export default function ProductsPage() {
                         </div>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => handleOpenRecipeModal(product.id, false)}
-                        className="flex items-center text-sm text-gray-400 cursor-pointer hover:bg-blue-50 hover:text-blue-600 p-2 rounded-md transition-colors"
-                        title="คลิกเพื่อเพิ่มสูตรการผลิต"
-                      >
-                        <ChefHat className="h-4 w-4 mr-1" />
-                        <span>👨‍🍳 ยังไม่มีสูตรการผลิต</span>
-                      </div>
+                      // เฉพาะ HeadOffice เท่านั้นที่สามารถเพิ่มสูตรได้
+                      session?.user.userGroup === 'HeadOffice' ? (
+                        <div
+                          onClick={() => handleOpenRecipeModal(product.id, false)}
+                          className="flex items-center text-sm text-gray-400 cursor-pointer hover:bg-blue-50 hover:text-blue-600 p-2 rounded-md transition-colors"
+                          title="คลิกเพื่อเพิ่มสูตรการผลิต"
+                        >
+                          <ChefHat className="h-4 w-4 mr-1" />
+                          <span>👨‍🍳 ยังไม่มีสูตรการผลิต</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-sm text-gray-400 p-2">
+                          <ChefHat className="h-4 w-4 mr-1" />
+                          <span>ยังไม่มีสูตรการผลิต</span>
+                        </div>
+                      )
                     )}
                   </div>
 
