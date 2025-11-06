@@ -21,28 +21,7 @@ export async function GET(
 
     const params = await props.params
     const notification = await prisma.headOfficeNotification.findUnique({
-      where: { id: params.id },
-      include: {
-        warranty: {
-          include: {
-            dealer: {
-              select: {
-                id: true,
-                dealerCode: true,
-                dealerName: true
-              }
-            },
-            product: true
-          }
-        },
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        }
-      }
+      where: { id: params.id }
     })
 
     if (!notification) {
@@ -52,7 +31,22 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ notification })
+    // Parse data field to get additional info if needed
+    let parsedData = null
+    if (notification.data) {
+      try {
+        parsedData = JSON.parse(notification.data)
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+
+    return NextResponse.json({
+      notification: {
+        ...notification,
+        parsedData
+      }
+    })
   } catch (error) {
     console.error('Error fetching notification:', error)
     return NextResponse.json(
@@ -96,22 +90,6 @@ export async function PUT(
       data: {
         isRead,
         readAt: isRead ? new Date() : null
-      },
-      include: {
-        warranty: {
-          select: {
-            id: true,
-            warrantyNumber: true,
-            customerName: true
-          }
-        },
-        dealer: {
-          select: {
-            id: true,
-            dealerCode: true,
-            dealerName: true
-          }
-        }
       }
     })
 
