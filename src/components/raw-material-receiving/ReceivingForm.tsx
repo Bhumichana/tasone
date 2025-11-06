@@ -29,6 +29,7 @@ interface ReceivingFormData {
   storageLocation: string
   expiryDate: string
   notes: string
+  qualityStatus: string
 }
 
 interface ReceivingFormProps {
@@ -62,6 +63,7 @@ export default function ReceivingForm({
     storageLocation: '',
     expiryDate: '',
     notes: '',
+    qualityStatus: 'PASSED',
     ...initialData
   })
 
