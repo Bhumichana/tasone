@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { signIn, getSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -8,14 +8,8 @@ import Image from 'next/image'
 import { Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export default function LoginPage() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [successMessage, setSuccessMessage] = useState('')
-  const router = useRouter()
+// Component สำหรับดึง success message จาก URL
+function SuccessMessageHandler({ setSuccessMessage }: { setSuccessMessage: (msg: string) => void }) {
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -23,7 +17,19 @@ export default function LoginPage() {
     if (message) {
       setSuccessMessage(message)
     }
-  }, [searchParams])
+  }, [searchParams, setSuccessMessage])
+
+  return null
+}
+
+function LoginForm() {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -68,6 +74,9 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <Suspense fallback={null}>
+        <SuccessMessageHandler setSuccessMessage={setSuccessMessage} />
+      </Suspense>
       <div className="max-w-md w-full space-y-8">
         <div className="bg-white rounded-lg shadow-2xl border-2 border-blue-900 p-8 mx-auto">
           {/* Logo */}
@@ -191,3 +200,4 @@ export default function LoginPage() {
     </div>
   )
 }
+export default LoginForm
