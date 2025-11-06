@@ -38,6 +38,7 @@ export default function DealersPage() {
   const [dealers, setDealers] = useState<Dealer[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedRegion, setSelectedRegion] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingDealer, setEditingDealer] = useState<Dealer | null>(null)
   const [formData, setFormData] = useState({
@@ -159,11 +160,17 @@ export default function DealersPage() {
     })
   }
 
-  const filteredDealers = dealers.filter(dealer =>
-    dealer.dealerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    dealer.dealerCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    dealer.manufacturerNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredDealers = dealers.filter(dealer => {
+    // กรองตามคำค้นหา
+    const matchesSearch = dealer.dealerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dealer.dealerCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      dealer.manufacturerNumber.toLowerCase().includes(searchTerm.toLowerCase())
+
+    // กรองตามภาค
+    const matchesRegion = !selectedRegion || dealer.region === selectedRegion
+
+    return matchesSearch && matchesRegion
+  })
 
   if (status === 'loading' || loading) {
     return (
@@ -199,15 +206,32 @@ export default function DealersPage() {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="mb-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="ค้นหาตัวแทนจำหน่าย..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full md:w-1/3"
-              />
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1 md:max-w-md">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="ค้นหาตัวแทนจำหน่าย..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full"
+                />
+              </div>
+              <div className="md:w-64">
+                <select
+                  value={selectedRegion}
+                  onChange={(e) => setSelectedRegion(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">ทุกภาค</option>
+                  <option value="ภาคเหนือ">ภาคเหนือ</option>
+                  <option value="ภาคตะวันออกเฉียงเหนือ">ภาคตะวันออกเฉียงเหนือ</option>
+                  <option value="ภาคตะวันตก">ภาคตะวันตก</option>
+                  <option value="ภาคกลาง">ภาคกลาง</option>
+                  <option value="ภาคตะวันออก">ภาคตะวันออก</option>
+                  <option value="ภาคใต้">ภาคใต้</option>
+                </select>
+              </div>
             </div>
           </div>
 
