@@ -135,10 +135,6 @@ export default function DeliveryForm({
       if (!item.rawMaterialId) {
         newErrors[`item_${index}_material`] = `รายการที่ ${index + 1}: กรุณาเลือกวัตถุดิบ`
       }
-      // ✅ ตรวจสอบ batchId
-      if (!item.batchId || item.batchId.trim() === '') {
-        newErrors[`item_${index}_batchId`] = `รายการที่ ${index + 1}: ไม่พบ Batch ID (กรุณาลบและเพิ่มรายการใหม่)`
-      }
       // ตรวจสอบ batchNumber
       if (!item.batchNumber || !item.batchNumber.trim()) {
         newErrors[`item_${index}_batch`] = `รายการที่ ${index + 1}: กรุณาระบุ Batch Number`
