@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import IncomingMaterialForm from '@/components/incoming-materials/IncomingMaterialForm'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 interface RawMaterial {
   id: string
@@ -70,12 +72,13 @@ interface DealerReceipt {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'DELIVERED', label: 'รอรับเข้า', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-  { value: 'RECEIVED', label: 'รับเข้าแล้ว', color: 'bg-green-100 text-green-800', icon: CheckCircle }
+  { value: 'PENDING_RECEIPT', label: 'รอรับเข้า', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+  { value: 'DELIVERED', label: 'รับเข้าแล้ว', color: 'bg-green-100 text-green-800', icon: CheckCircle }
 ]
 
 export default function IncomingMaterialsPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [receipts, setReceipts] = useState<DealerReceipt[]>([])
   const [pendingDeliveries, setPendingDeliveries] = useState<MaterialDelivery[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,7 +101,33 @@ export default function IncomingMaterialsPage() {
   })
 
   useEffect(() => {
-    fetchIncomingMaterials()
+    let mounted = true
+
+    const loadData = async () => {
+      if (mounted) {
+        await fetchIncomingMaterials()
+
+        // Check for success parameter in URL
+        const urlParams = new URLSearchParams(window.location.search)
+        if (urlParams.get('success') === 'true') {
+          setSuccessMessage('รับเข้าวัตถุดิบเรียบร้อยแล้ว')
+
+          // Clear success parameter from URL without reload
+          window.history.replaceState({}, '', '/dashboard/incoming-materials')
+
+          // Auto-hide success message after 5 seconds
+          setTimeout(() => {
+            setSuccessMessage('')
+          }, 5000)
+        }
+      }
+    }
+
+    loadData()
+
+    return () => {
+      mounted = false
+    }
   }, [searchTerm, statusFilter])
 
   const fetchIncomingMaterials = async () => {
@@ -110,20 +139,31 @@ export default function IncomingMaterialsPage() {
       const response = await fetch(`/api/dealer-receipts?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setReceipts(data.receipts || [])
-        setPendingDeliveries(data.pendingDeliveries || [])
+
+        // Safely set receipts with validation
+        const validReceipts = (data.receipts || []).filter((receipt: DealerReceipt) => {
+          return receipt && receipt.materialDelivery && receipt.materialDelivery.items
+        })
+
+        // Safely set pending deliveries with validation
+        const validPendingDeliveries = (data.pendingDeliveries || []).filter((delivery: MaterialDelivery) => {
+          return delivery && delivery.items && delivery.items.length > 0
+        })
+
+        setReceipts(validReceipts)
+        setPendingDeliveries(validPendingDeliveries)
 
         // Calculate statistics
-        const total = (data.receipts?.length || 0) + (data.pendingDeliveries?.length || 0)
-        const pending = data.pendingDeliveries?.length || 0
-        const received = data.receipts?.length || 0
+        const total = validReceipts.length + validPendingDeliveries.length
+        const pending = validPendingDeliveries.length
+        const received = validReceipts.length
 
         // Calculate overdue (deliveries older than 3 days)
         const threeDaysAgo = new Date()
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-        const overdue = data.pendingDeliveries?.filter((delivery: MaterialDelivery) =>
+        const overdue = validPendingDeliveries.filter((delivery: MaterialDelivery) =>
           new Date(delivery.deliveryDate) < threeDaysAgo
-        ).length || 0
+        ).length
 
         setStats({ total, pending, received, overdue })
       } else {
@@ -160,11 +200,14 @@ export default function IncomingMaterialsPage() {
   }
 
   const handleFormSubmit = async (formData: any) => {
+    // Prevent multiple submissions
+    if (formLoading) return
+
     setFormLoading(true)
-    setError('') // Clear any existing errors first
-    setSuccessMessage('') // Clear any existing success messages
+    setError('')
 
     try {
+      // Submit the form data
       const response = await fetch('/api/dealer-receipts', {
         method: 'POST',
         headers: {
@@ -173,42 +216,21 @@ export default function IncomingMaterialsPage() {
         body: JSON.stringify(formData),
       })
 
-      const responseData = await response.json()
-
-      if (response.ok) {
-        // Success - close form and refresh data
-        setShowForm(false)
-        setViewMode('list')
-        setSelectedDelivery(null)
-
-        // Clear any errors before refreshing data
-        setError('')
-
-        // Set success message
-        setSuccessMessage(responseData.message || 'รับเข้าวัตถุดิบเรียบร้อยแล้ว')
-
-        // Clear success message after 3 seconds
-        setTimeout(() => {
-          setSuccessMessage('')
-        }, 3000)
-
-        // Refresh data - wrap in try-catch to handle errors separately
-        try {
-          await fetchIncomingMaterials()
-        } catch (refreshError) {
-          console.error('Error refreshing data after submit:', refreshError)
-          // Don't show error to user since the main action (submit) was successful
-        }
-      } else {
-        // Error from server
-        console.error('Server error:', responseData)
-        setError(responseData.error || 'ไม่สามารถสร้างการรับเข้าวัตถุดิบได้')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'ไม่สามารถบันทึกข้อมูลได้' }))
+        setFormLoading(false)
+        setError(errorData.error || 'ไม่สามารถบันทึกข้อมูลได้')
+        return
       }
-    } catch (error) {
-      console.error('Network error creating receipt:', error)
-      setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง')
-    } finally {
+
+      // Success - use window.location for guaranteed redirect
+      // ErrorBoundary will handle any errors during transition
+      window.location.href = '/dashboard/incoming-materials?success=true'
+
+    } catch (error: any) {
+      console.error('Error creating receipt:', error)
       setFormLoading(false)
+      setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง')
     }
   }
 
@@ -257,28 +279,39 @@ export default function IncomingMaterialsPage() {
 
   if (showForm && selectedDelivery) {
     return (
-      <DashboardLayout>
-        <IncomingMaterialForm
-          delivery={selectedDelivery}
-          onSubmit={handleFormSubmit}
-          onCancel={() => {
-            setShowForm(false)
-            setViewMode('list')
-            setSelectedDelivery(null)
-            setError('') // Clear errors when canceling
-            setSuccessMessage('') // Clear success messages when canceling
-          }}
-          loading={formLoading}
-        />
-      </DashboardLayout>
+      <ErrorBoundary autoRecover={true} recoveryDelay={100}>
+        <DashboardLayout>
+          {error && (
+            <Alert className="mb-4 border-red-200 bg-red-50">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-red-800">
+                {error}
+              </AlertDescription>
+            </Alert>
+          )}
+          <IncomingMaterialForm
+            delivery={selectedDelivery}
+            onSubmit={handleFormSubmit}
+            onCancel={() => {
+              setShowForm(false)
+              setViewMode('list')
+              setSelectedDelivery(null)
+              setError('')
+              setSuccessMessage('')
+            }}
+            loading={formLoading}
+          />
+        </DashboardLayout>
+      </ErrorBoundary>
     )
   }
 
   // Detail View
   if (viewMode === 'detail' && selectedReceipt) {
     return (
-      <DashboardLayout>
-        <div className="space-y-6">
+      <ErrorBoundary autoRecover={true} recoveryDelay={100}>
+        <DashboardLayout>
+          <div className="space-y-6">
           {/* Header */}
           <div className="flex justify-between items-center">
             <div>
@@ -347,12 +380,14 @@ export default function IncomingMaterialsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedReceipt.materialDelivery.items.map((item, index) => (
+                    {selectedReceipt.materialDelivery.items
+                      .filter(item => item.rawMaterial) // กรองเฉพาะ item ที่มี rawMaterial
+                      .map((item, index) => (
                       <tr key={item.id || index} className="border-b hover:bg-gray-50">
                         <td className="p-4">
-                          <div className="font-medium">{item.rawMaterial.materialName}</div>
+                          <div className="font-medium">{item.rawMaterial?.materialName || 'ไม่ระบุ'}</div>
                           <div className="text-sm text-gray-500">
-                            {item.rawMaterial.materialCode} • {item.rawMaterial.materialType}
+                            {item.rawMaterial?.materialCode || '-'} • {item.rawMaterial?.materialType || '-'}
                           </div>
                         </td>
                         <td className="p-4 text-gray-900">{item.batchNumber}</td>
@@ -368,12 +403,29 @@ export default function IncomingMaterialsPage() {
           </Card>
         </div>
       </DashboardLayout>
+      </ErrorBoundary>
     )
   }
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
+    <ErrorBoundary autoRecover={true} recoveryDelay={100}>
+      <DashboardLayout>
+        {/* Loading Overlay during form submission */}
+        {formLoading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 shadow-xl">
+              <div className="flex items-center gap-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div>
+                  <p className="font-medium text-gray-900">กำลังประมวลผล...</p>
+                  <p className="text-sm text-gray-600">กรุณารอสักครู่</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -453,8 +505,8 @@ export default function IncomingMaterialsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">ทุกสถานะ</SelectItem>
-                  <SelectItem value="DELIVERED">รอรับเข้า</SelectItem>
-                  <SelectItem value="RECEIVED">รับเข้าแล้ว</SelectItem>
+                  <SelectItem value="PENDING_RECEIPT">รอรับเข้า</SelectItem>
+                  <SelectItem value="DELIVERED">รับเข้าแล้ว</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -526,7 +578,11 @@ export default function IncomingMaterialsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingDeliveries.map((delivery) => (
+                    {pendingDeliveries.map((delivery) => {
+                      if (!delivery || !delivery.items || delivery.items.length === 0) {
+                        return null
+                      }
+                      return (
                       <tr
                         key={delivery.id}
                         className={`border-b hover:bg-gray-50 ${
@@ -560,10 +616,12 @@ export default function IncomingMaterialsPage() {
                           <div className="space-y-1">
                             {/* รวมปริมาณตามหน่วย */}
                             {Object.entries(
-                              delivery.items.reduce((acc: Record<string, number>, item) => {
-                                acc[item.unit] = (acc[item.unit] || 0) + item.quantity
-                                return acc
-                              }, {})
+                              delivery.items
+                                .filter(item => item.rawMaterial && item.unit && item.quantity)
+                                .reduce((acc: Record<string, number>, item) => {
+                                  acc[item.unit] = (acc[item.unit] || 0) + item.quantity
+                                  return acc
+                                }, {})
                             ).map(([unit, total]) => (
                               <div key={unit} className="text-sm">
                                 {Number(total).toFixed(2)} {unit}
@@ -582,7 +640,8 @@ export default function IncomingMaterialsPage() {
                           </Button>
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -622,43 +681,48 @@ export default function IncomingMaterialsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {receipts.map((receipt) => (
-                      <tr key={receipt.id} className="border-b hover:bg-gray-50">
-                        <td className="p-4">
-                          <div className="font-medium text-green-600">
-                            {receipt.receiptNumber}
-                          </div>
-                          {receipt.notes && (
-                            <div className="text-sm text-gray-500 mt-1">
-                              {receipt.notes.substring(0, 50)}
-                              {receipt.notes.length > 50 && '...'}
+                    {receipts.map((receipt) => {
+                      if (!receipt || !receipt.materialDelivery) {
+                        return null
+                      }
+                      return (
+                        <tr key={receipt.id} className="border-b hover:bg-gray-50">
+                          <td className="p-4">
+                            <div className="font-medium text-green-600">
+                              {receipt.receiptNumber}
                             </div>
-                          )}
-                        </td>
-                        <td className="p-4 text-gray-900">
-                          {formatDate(receipt.receiptDate)}
-                        </td>
-                        <td className="p-4">
-                          <div className="font-medium text-blue-600">
-                            {receipt.materialDelivery.deliveryNumber}
-                          </div>
-                        </td>
-                        <td className="p-4 text-gray-900">
-                          {receipt.receivedBy}
-                        </td>
-                        <td className="p-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewReceipt(receipt.id)}
-                            className="gap-2"
-                          >
-                            <Eye className="h-4 w-4" />
-                            ดูรายละเอียด
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
+                            {receipt.notes && (
+                              <div className="text-sm text-gray-500 mt-1">
+                                {receipt.notes.substring(0, 50)}
+                                {receipt.notes.length > 50 && '...'}
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-4 text-gray-900">
+                            {formatDate(receipt.receiptDate)}
+                          </td>
+                          <td className="p-4">
+                            <div className="font-medium text-blue-600">
+                              {receipt.materialDelivery?.deliveryNumber || '-'}
+                            </div>
+                          </td>
+                          <td className="p-4 text-gray-900">
+                            {receipt.receivedBy}
+                          </td>
+                          <td className="p-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleViewReceipt(receipt.id)}
+                              className="gap-2"
+                            >
+                              <Eye className="h-4 w-4" />
+                              ดูรายละเอียด
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -667,5 +731,6 @@ export default function IncomingMaterialsPage() {
         </Card>
       </div>
     </DashboardLayout>
+    </ErrorBoundary>
   )
 }

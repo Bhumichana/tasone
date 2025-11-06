@@ -36,6 +36,7 @@ export async function GET(
       include: {
         product: true,
         dealer: true,
+        subDealer: true,  // เพิ่ม: ดึงข้อมูลผู้ขายรายย่อย
       },
     })
     console.log('✓ Warranty data fetched')
@@ -57,10 +58,12 @@ export async function GET(
       )
     }
 
-    // โหลดภาพ JPG
+    // โหลดภาพ JPG (อ่านจาก Product)
     console.log('📂 Loading JPG background...')
-    const imagePath = path.join(process.cwd(), 'public', 'Certification-Form.jpg')
-    console.log('Image path:', imagePath)
+    const templateImage = warranty.product.templateImage || 'Certification-Form.jpg'
+    console.log('📋 Template file:', templateImage)
+    const imagePath = path.join(process.cwd(), 'public', templateImage)
+    console.log('📍 Image path:', imagePath)
     const imageBytes = await fs.readFile(imagePath)
     console.log('✓ Image loaded, size:', imageBytes.length)
 
@@ -157,7 +160,13 @@ export async function GET(
     }
 
     // 2. ชื่อตัวแทนจำหน่าย (X=840, Y=315)
-    page.drawText(warranty.dealer.dealerName || '', {
+    // ถ้ามีผู้ขายรายย่อย ให้แสดงชื่อผู้ขายรายย่อยแทน
+    const dealerDisplayName = warranty.subDealer?.name || warranty.dealer.dealerName || ''
+    console.log('✍️ Dealer Display Name:', dealerDisplayName)
+    console.log('   - Sub-Dealer:', warranty.subDealer?.name || 'N/A')
+    console.log('   - Main Dealer:', warranty.dealer.dealerName)
+
+    page.drawText(dealerDisplayName, {
       x: 840,
       y: 2000 - 315,
       size: 20,
@@ -332,18 +341,18 @@ export async function GET(
       color: color,
     })
 
-    // 11. พื้นที่ติดตั้งฉนวน (X=285, Y=629)
+    // 11. พื้นที่ติดตั้งฉนวน (X=500, Y=629)
     page.drawText(warranty.installationArea ? `${warranty.installationArea}` : '', {
-      x: 285,
+      x: 500,
       y: 2000 - 629,
       size: 18,
       font: font,
       color: color,
     })
 
-    // 12. ความหนา (X=880, Y=629)
+    // 12. ความหนา (X=980, Y=629)
     page.drawText(warranty.thickness ? `${warranty.thickness}` : '', {
-      x: 880,
+      x: 980,
       y: 2000 - 629,
       size: 18,
       font: font,
@@ -390,7 +399,10 @@ export async function GET(
     })
 
     // === ส่วนที่ 2: ส่วนล่าง (Bottom Section - Carbon Copy) ===
+    // *** ไม่แสดงข้อมูลข้อ 14-25 ในการ Print เพราะเป็นส่วนที่ส่งคืนสำนักงานใหญ่ ***
+    // *** ข้อมูลจะแสดงเฉพาะในโปรแกรมเท่านั้น ***
 
+    /*
     // 14. หมายเลขใบรับประกัน (Carbon Copy) - X=283, Y=1577
     console.log('✍️ Writing Warranty Number (Carbon Copy)')
     if (warrantyNumberText) {
@@ -406,8 +418,9 @@ export async function GET(
       console.log('✅ Warranty Number (Carbon Copy) drawn at X=283, Y=423')
     }
 
-    // 15. ชื่อตัวแทนจำหน่าย (X=840, Y=1577)
-    page.drawText(warranty.dealer.dealerName || '', {
+    // 15. ชื่อตัวแทนจำหน่าย (Carbon Copy) (X=840, Y=1577)
+    // ถ้ามีผู้ขายรายย่อย ให้แสดงชื่อผู้ขายรายย่อยแทน (ใช้ dealerDisplayName เดียวกัน)
+    page.drawText(dealerDisplayName, {
       x: 840,
       y: 2000 - 1577,
       size: 20,
@@ -496,10 +509,26 @@ export async function GET(
     })
 
     // 23. หมายเลข Batch สารเคมี (X=979, Y=1838)
-    page.drawText(warranty.chemicalBatchNo || '', {
+    // ปรับขนาดฟอนต์แบบ Dynamic ตามความยาวของ Batch Number
+    const chemicalBatchNoText = warranty.chemicalBatchNo || ''
+    const batchLength = chemicalBatchNoText.length
+
+    // กำหนดขนาดฟอนต์ตามความยาว
+    let batchFontSize = 20  // ค่าเริ่มต้น
+    if (batchLength > 45) {
+      batchFontSize = 14  // ลดมาก สำหรับ 3+ batches
+    } else if (batchLength > 30) {
+      batchFontSize = 16  // ลดปานกลาง สำหรับ 2-3 batches
+    }
+    // else ใช้ 20 (ปกติ) สำหรับ 1 batch
+
+    console.log(`📋 Chemical Batch No: "${chemicalBatchNoText}"`)
+    console.log(`   Length: ${batchLength} chars, Font size: ${batchFontSize}`)
+
+    page.drawText(chemicalBatchNoText, {
       x: 979,
       y: 2000 - 1838,
-      size: 20,
+      size: batchFontSize,
       font: font,
       color: color,
     })
@@ -521,6 +550,9 @@ export async function GET(
       font: font,
       color: color,
     })
+    */
+
+    console.log('ℹ️ Carbon Copy section (ข้อ 14-25) is disabled for printing')
 
     console.log('✓ All text written')
 

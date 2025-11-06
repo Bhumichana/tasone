@@ -22,8 +22,11 @@ import {
   PackageOpen,
   Archive,
   BarChart,
-  Store
+  Store,
+  FileImage,
+  AlertTriangle
 } from 'lucide-react'
+import NotificationBell from './NotificationBell'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -40,9 +43,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     ...(session?.user.userGroup === 'HeadOffice' ? [
       { name: 'จัดการผู้ใช้งาน', href: '/dashboard/users', icon: Users, current: pathname === '/dashboard/users' },
       { name: 'จัดการตัวแทนจำหน่าย', href: '/dashboard/dealers', icon: Building2, current: pathname === '/dashboard/dealers' },
-      { name: 'วัตถุดิบ (Raw Materials)', href: '/dashboard/raw-materials', icon: Package, current: pathname === '/dashboard/raw-materials' },
+      { name: 'รหัสวัตถุดิบ (Raw Materials Code)', href: '/dashboard/raw-materials', icon: Package, current: pathname === '/dashboard/raw-materials' },
       { name: 'การรับเข้าวัตถุดิบ', href: '/dashboard/raw-material-receiving', icon: Truck, current: pathname === '/dashboard/raw-material-receiving' },
       { name: 'การส่งมอบวัตถุดิบ', href: '/dashboard/material-deliveries', icon: Send, current: pathname === '/dashboard/material-deliveries' },
+      { name: 'จัดการวัตถุดิบหมดอายุ', href: '/dashboard/expired-materials', icon: AlertTriangle, current: pathname === '/dashboard/expired-materials' },
+      { name: 'จัดการเทมเพลท', href: '/dashboard/templates', icon: FileImage, current: pathname === '/dashboard/templates' },
     ] : [
       // Dealer-only menus
       { name: 'การรับเข้าวัตถุดิบ', href: '/dashboard/incoming-materials', icon: PackageOpen, current: pathname === '/dashboard/incoming-materials' },
@@ -51,7 +56,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     ]),
     { name: 'สินค้า(BOM)', href: '/dashboard/products', icon: ShoppingCart, current: pathname === '/dashboard/products' },
     { name: 'จัดการใบรับประกัน', href: '/dashboard/warranties', icon: FileText, current: pathname === '/dashboard/warranties' },
-    { name: 'รายงานระบบ', href: '/dashboard/reports', icon: BarChart, current: pathname === '/dashboard/reports' },
+    { name: 'รายงานวัตถุดิบ', href: '/dashboard/reports', icon: BarChart, current: pathname === '/dashboard/reports' },
     { name: 'โปรไฟล์', href: '/dashboard/profile', icon: Settings, current: pathname === '/dashboard/profile' },
   ]
 
@@ -69,10 +74,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <div className="flex flex-col items-center py-6">
               <div className="relative w-18 h-18 mb-5">
                 <Image
-                  src="/tas-logo.svg"
+                  src="/tas-sidebar-logo.svg"
                   alt="TAT Logo"
                   width={72}
                   height={72}
+                  priority
                   className="sidebar-logo rounded-lg"
                 />
               </div>
@@ -117,6 +123,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           src={session.user.avatarUrl}
                           alt="User Avatar"
                           fill
+                          sizes="32px"
                           className="object-cover"
                         />
                       </div>
@@ -151,10 +158,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex flex-col items-center py-8">
             <div className="relative w-20 h-20 mb-6">
               <Image
-                src="/tas-logo.svg"
+                src="/tas-sidebar-logo.svg"
                 alt="TAT Logo"
                 width={80}
                 height={80}
+                priority
                 className="sidebar-logo rounded-lg"
               />
             </div>
@@ -196,6 +204,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                         src={session.user.avatarUrl}
                         alt="User Avatar"
                         fill
+                        sizes="32px"
                         className="object-cover"
                       />
                     </div>
@@ -252,6 +261,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1"></div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               {/* User menu for desktop */}
               <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" />
               <div className="hidden lg:flex lg:items-center lg:gap-x-3">

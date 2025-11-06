@@ -51,8 +51,7 @@ interface MaterialDelivery {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'PREPARING', label: 'เตรียมส่ง', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-  { value: 'SHIPPING', label: 'กำลังส่ง', color: 'bg-blue-100 text-blue-800', icon: Truck },
+  { value: 'PENDING_RECEIPT', label: 'รอดีลเลอร์รับเข้า', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
   { value: 'DELIVERED', label: 'ส่งแล้ว', color: 'bg-green-100 text-green-800', icon: CheckCircle }
 ]
 
@@ -73,8 +72,7 @@ export default function MaterialDeliveriesPage() {
   // Statistics
   const [stats, setStats] = useState({
     total: 0,
-    preparing: 0,
-    shipping: 0,
+    pending: 0,
     delivered: 0
   })
 
@@ -97,11 +95,10 @@ export default function MaterialDeliveriesPage() {
 
         // Calculate statistics
         const total = data.deliveries.length
-        const preparing = data.deliveries.filter((d: MaterialDelivery) => d.status === 'PREPARING').length
-        const shipping = data.deliveries.filter((d: MaterialDelivery) => d.status === 'SHIPPING').length
+        const pending = data.deliveries.filter((d: MaterialDelivery) => d.status === 'PENDING_RECEIPT').length
         const delivered = data.deliveries.filter((d: MaterialDelivery) => d.status === 'DELIVERED').length
 
-        setStats({ total, preparing, shipping, delivered })
+        setStats({ total, pending, delivered })
       } else {
         setError('ไม่สามารถดึงข้อมูลการส่งมอบได้')
       }
@@ -169,12 +166,15 @@ export default function MaterialDeliveriesPage() {
 
   const handleFormSubmit = async (formData: any) => {
     setFormLoading(true)
+    setError('') // ✅ ล้าง error ก่อน
     try {
       const isEditing = viewMode === 'edit' && selectedDelivery
       const url = isEditing
         ? `/api/material-deliveries/${selectedDelivery.id}`
         : '/api/material-deliveries'
       const method = isEditing ? 'PUT' : 'POST'
+
+      console.log('🚀 Submitting delivery:', { url, method, formData }) // ✅ Debug log
 
       const response = await fetch(url, {
         method,
@@ -184,6 +184,10 @@ export default function MaterialDeliveriesPage() {
         body: JSON.stringify(formData),
       })
 
+      const responseData = await response.json() // ✅ อ่าน response ก่อน
+
+      console.log('📥 Response:', { status: response.status, data: responseData }) // ✅ Debug log
+
       if (response.ok) {
         setShowForm(false)
         setViewMode('list')
@@ -191,12 +195,16 @@ export default function MaterialDeliveriesPage() {
         fetchDeliveries() // Refresh data
         setError('')
       } else {
-        const errorData = await response.json()
-        setError(errorData.error || `ไม่สามารถ${isEditing ? 'แก้ไข' : 'สร้าง'}การส่งมอบได้`)
+        const errorMsg = responseData.error || `ไม่สามารถ${isEditing ? 'แก้ไข' : 'สร้าง'}การส่งมอบได้`
+        console.error('❌ Error:', errorMsg) // ✅ Debug log
+        setError(errorMsg)
+        alert(errorMsg) // ✅ แจ้งเตือนผู้ใช้
       }
     } catch (error) {
-      console.error('Error submitting delivery:', error)
-      setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล')
+      console.error('💥 Exception:', error) // ✅ Debug log
+      const errorMsg = 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (error as Error).message
+      setError(errorMsg)
+      alert(errorMsg) // ✅ แจ้งเตือนผู้ใช้
     } finally {
       setFormLoading(false)
     }
@@ -264,14 +272,30 @@ export default function MaterialDeliveriesPage() {
       dealerId: selectedDelivery.dealer.id,
       status: selectedDelivery.status,
       notes: selectedDelivery.notes || '',
-      items: selectedDelivery.items.map(item => ({
-        id: item.id,
-        rawMaterialId: item.rawMaterialId,
-        batchNumber: item.batchNumber,
-        quantity: item.quantity,
-        unit: item.unit
-      }))
+      items: selectedDelivery.items.map(item => {
+        // ✅ Debug: ตรวจสอบว่า batchId มีค่าหรือไม่
+        const batchId = (item as any).batchId || (item as any).batch?.id || ''
+        console.log('📦 Item:', {
+          rawMaterialId: item.rawMaterialId,
+          batchNumber: item.batchNumber,
+          batchId: batchId,
+          hasDirectBatchId: !!(item as any).batchId,
+          hasBatchObject: !!(item as any).batch,
+          batchObjectId: (item as any).batch?.id
+        })
+        return {
+          id: item.id,
+          rawMaterialId: item.rawMaterialId,
+          batchId: batchId,
+          batchNumber: item.batchNumber,
+          quantity: item.quantity,
+          unit: item.unit
+        }
+      })
     } : undefined
+
+    // ✅ Debug: แสดง initialData
+    console.log('📋 InitialData for edit:', initialData)
 
     return (
       <DashboardLayout>
@@ -419,7 +443,7 @@ export default function MaterialDeliveriesPage() {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">ทั้งหมด</CardTitle>
@@ -433,23 +457,12 @@ export default function MaterialDeliveriesPage() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">เตรียมส่ง</CardTitle>
+              <CardTitle className="text-sm font-medium">รอดีลเลอร์รับเข้า</CardTitle>
               <Clock className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">{stats.preparing}</div>
-              <p className="text-xs text-gray-600">รอการส่งมอบ</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">กำลังส่ง</CardTitle>
-              <Truck className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.shipping}</div>
-              <p className="text-xs text-gray-600">อยู่ระหว่างขนส่ง</p>
+              <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+              <p className="text-xs text-gray-600">ยังไม่ได้รับเข้า</p>
             </CardContent>
           </Card>
 
@@ -618,7 +631,7 @@ export default function MaterialDeliveriesPage() {
                                 >
                                   แก้ไข
                                 </Button>
-                                {delivery.status === 'PREPARING' && (
+                                {delivery.status === 'PENDING_RECEIPT' && (
                                   <Button
                                     variant="destructive"
                                     size="sm"

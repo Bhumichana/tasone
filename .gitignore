@@ -34,6 +34,16 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# database files (SQLite - local development only)
+*.db
+*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# database backups and exports
+prisma/backups/
+prisma/migrations.sqlite.backup/
+
 # vercel
 .vercel
 

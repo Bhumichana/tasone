@@ -345,6 +345,7 @@ export async function POST(request: NextRequest) {
 
         // 🔍 STEP 1: ตรวจสอบสต็อกทั้งหมดก่อน (Pre-check Multi-Batch)
         const insufficientMaterials: any[] = []
+        const expiredMaterials: any[] = []
 
         for (const material of materials) {
           const { materialCode, materialName, batches, totalQuantity, unit } = material
@@ -385,6 +386,17 @@ export async function POST(request: NextRequest) {
               continue
             }
 
+            // ตรวจสอบวันหมดอายุ
+            if (dealerStock.expiryDate && new Date(dealerStock.expiryDate) < new Date()) {
+              expiredMaterials.push({
+                materialName: materialName || materialCode,
+                batchNumber: batchNumber,
+                expiryDate: dealerStock.expiryDate,
+                reason: 'วัตถุดิบหมดอายุแล้ว'
+              })
+              continue
+            }
+
             // ตรวจสอบว่าสต็อกเพียงพอหรือไม่
             if (dealerStock.currentStock < quantityUsed) {
               insufficientMaterials.push({
@@ -397,6 +409,28 @@ export async function POST(request: NextRequest) {
               })
             }
           }
+        }
+
+        // 🚫 หากมีวัตถุดิบที่หมดอายุ ให้หยุดทันทีและแจ้ง error
+        if (expiredMaterials.length > 0) {
+          console.error('❌ Expired materials detected:', expiredMaterials)
+
+          // สร้างข้อความแจ้งเตือนที่ชัดเจน
+          let errorMessage = '❌ ไม่สามารถออกใบรับประกันได้ เนื่องจากวัตถุดิบหมดอายุแล้ว:\n\n'
+          expiredMaterials.forEach((mat, index) => {
+            const expDate = new Date(mat.expiryDate).toLocaleDateString('th-TH')
+            errorMessage += `${index + 1}. ${mat.materialName} (Batch: ${mat.batchNumber})\n`
+            errorMessage += `   - วันหมดอายุ: ${expDate}\n`
+            errorMessage += `   - สถานะ: หมดอายุแล้ว\n\n`
+          })
+
+          return NextResponse.json(
+            {
+              error: errorMessage,
+              expiredMaterials: expiredMaterials
+            },
+            { status: 400 }
+          )
         }
 
         // 🚫 หากมีวัตถุดิบใดไม่เพียงพอ ให้หยุดทันทีและแจ้ง error

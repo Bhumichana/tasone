@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Textarea } from '@/components/ui/textarea'
+import ThaiDatePicker from '@/components/ui/ThaiDatePicker'
+import { format } from 'date-fns'
 import {
   ArrowLeft,
   Save,
@@ -87,15 +89,31 @@ export default function IncomingMaterialForm({
 
   const [items, setItems] = useState<ReceiptItem[]>([])
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [warningMessage, setWarningMessage] = useState('')
 
   useEffect(() => {
     // Initialize items from delivery
     if (delivery?.items && Array.isArray(delivery.items)) {
-      const initialItems: ReceiptItem[] = delivery.items.map(item => ({
+      // Filter out items that don't have rawMaterial data (safety check)
+      const validItems = delivery.items.filter(item => {
+        if (!item.rawMaterial) {
+          console.error('Missing rawMaterial data for item:', item)
+          return false
+        }
+        return true
+      })
+
+      // Show warning if some items were filtered out
+      if (validItems.length < delivery.items.length) {
+        const skippedCount = delivery.items.length - validItems.length
+        setWarningMessage(`พบรายการที่ไม่สามารถโหลดได้ ${skippedCount} รายการ (ข้อมูลวัตถุดิบไม่สมบูรณ์)`)
+      }
+
+      const initialItems: ReceiptItem[] = validItems.map(item => ({
         rawMaterialId: item.rawMaterialId,
-        materialCode: item.rawMaterial.materialCode,
-        materialName: item.rawMaterial.materialName,
-        materialType: item.rawMaterial.materialType,
+        materialCode: item.rawMaterial?.materialCode || '',
+        materialName: item.rawMaterial?.materialName || 'ไม่ระบุ',
+        materialType: item.rawMaterial?.materialType || '',
         batchNumber: item.batchNumber,
         quantity: item.quantity,
         unit: item.unit,
@@ -227,6 +245,16 @@ export default function IncomingMaterialForm({
         </Button>
       </div>
 
+      {/* Warning Message */}
+      {warningMessage && (
+        <Alert className="border-yellow-200 bg-yellow-50">
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="text-yellow-800">
+            {warningMessage}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Delivery Information */}
         <Card>
@@ -275,12 +303,15 @@ export default function IncomingMaterialForm({
                   <Calendar className="h-4 w-4 inline mr-1" />
                   วันที่รับเข้า *
                 </Label>
-                <Input
-                  id="receiptDate"
-                  type="date"
-                  value={formData.receiptDate}
-                  onChange={(e) => setFormData(prev => ({ ...prev, receiptDate: e.target.value }))}
-                  className={errors.receiptDate ? 'border-red-500' : ''}
+                <ThaiDatePicker
+                  selected={formData.receiptDate ? new Date(formData.receiptDate) : null}
+                  onChange={(date) => {
+                    if (date) {
+                      setFormData(prev => ({ ...prev, receiptDate: format(date, 'yyyy-MM-dd') }))
+                    }
+                  }}
+                  placeholderText="เลือกวันที่รับเข้า"
+                  className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.receiptDate ? 'border-red-500' : ''}`}
                 />
                 {errors.receiptDate && (
                   <p className="text-red-500 text-xs mt-1">{errors.receiptDate}</p>

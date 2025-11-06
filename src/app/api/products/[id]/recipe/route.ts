@@ -91,8 +91,23 @@ export async function POST(
       )
     }
 
-    // เฉพาะ Admin และ Manager เท่านั้นที่สามารถสร้างสูตรได้
-    if (session.user.role !== 'Admin' && session.user.role !== 'Manager') {
+    // Debug: แสดง session info
+    console.log('POST Recipe API - Session User:', {
+      userGroup: session.user.userGroup,
+      role: session.user.role,
+      firstName: session.user.firstName,
+      lastName: session.user.lastName
+    })
+
+    // เฉพาะ HeadOffice ที่มีสิทธิ์ Super Admin, Admin หรือ Manager เท่านั้นที่สามารถสร้างสูตรได้
+    const allowedRoles = ['Super Admin', 'Admin', 'Manager']
+    if (session.user.userGroup !== 'HeadOffice' || !allowedRoles.includes(session.user.role)) {
+      console.log('POST Recipe API - Access Denied:', {
+        userGroup: session.user.userGroup,
+        role: session.user.role,
+        isHeadOffice: session.user.userGroup === 'HeadOffice',
+        isAllowedRole: allowedRoles.includes(session.user.role)
+      })
       return NextResponse.json(
         { error: 'Forbidden: Only Admin and Manager can create recipes' },
         { status: 403 }
@@ -185,8 +200,9 @@ export async function PUT(
       )
     }
 
-    // เฉพาะ Admin และ Manager เท่านั้นที่สามารถแก้ไขสูตรได้
-    if (session.user.role !== 'Admin' && session.user.role !== 'Manager') {
+    // เฉพาะ HeadOffice ที่มีสิทธิ์ Super Admin, Admin หรือ Manager เท่านั้นที่สามารถแก้ไขสูตรได้
+    const allowedRoles = ['Super Admin', 'Admin', 'Manager']
+    if (session.user.userGroup !== 'HeadOffice' || !allowedRoles.includes(session.user.role)) {
       return NextResponse.json(
         { error: 'Forbidden: Only Admin and Manager can update recipes' },
         { status: 403 }
@@ -275,8 +291,9 @@ export async function DELETE(
       )
     }
 
-    // เฉพาะ Admin และ Manager เท่านั้นที่สามารถลบสูตรได้
-    if (session.user.role !== 'Admin' && session.user.role !== 'Manager') {
+    // เฉพาะ HeadOffice ที่มีสิทธิ์ Super Admin, Admin หรือ Manager เท่านั้นที่สามารถลบสูตรได้
+    const allowedRoles = ['Super Admin', 'Admin', 'Manager']
+    if (session.user.userGroup !== 'HeadOffice' || !allowedRoles.includes(session.user.role)) {
       return NextResponse.json(
         { error: 'Forbidden: Only Admin and Manager can delete recipes' },
         { status: 403 }

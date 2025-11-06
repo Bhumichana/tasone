@@ -5,7 +5,8 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Plus, Edit, Trash2, Building2, Search, Users, FileText } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { DatePicker } from '@/components/ui/date-picker'
+import ThaiDatePicker from '@/components/ui/ThaiDatePicker'
+import { format } from 'date-fns'
 
 interface Dealer {
   id: string
@@ -393,18 +394,32 @@ export default function DealersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่เริ่มเป็นตัวแทน</label>
-                  <DatePicker
-                    value={formData.startDate}
-                    onChange={(date) => setFormData({ ...formData, startDate: date })}
-                    placeholder="เลือกวันที่เริ่มต้น"
+                  <ThaiDatePicker
+                    selected={formData.startDate ? new Date(formData.startDate) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        setFormData({ ...formData, startDate: format(date, 'yyyy-MM-dd') })
+                      } else {
+                        setFormData({ ...formData, startDate: '' })
+                      }
+                    }}
+                    placeholderText="เลือกวันที่เริ่มต้น"
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่สิ้นสุด (ถ้ามี)</label>
-                  <DatePicker
-                    value={formData.endDate}
-                    onChange={(date) => setFormData({ ...formData, endDate: date })}
-                    placeholder="เลือกวันที่สิ้นสุด"
+                  <ThaiDatePicker
+                    selected={formData.endDate ? new Date(formData.endDate) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        setFormData({ ...formData, endDate: format(date, 'yyyy-MM-dd') })
+                      } else {
+                        setFormData({ ...formData, endDate: '' })
+                      }
+                    }}
+                    placeholderText="เลือกวันที่สิ้นสุด"
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
               </div>

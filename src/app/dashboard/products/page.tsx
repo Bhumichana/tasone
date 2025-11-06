@@ -28,6 +28,7 @@ interface Product {
   description?: string
   warrantyTerms?: string
   thickness?: number
+  templateImage?: string
   warranties: {
     id: string
     warrantyNumber: string
@@ -61,6 +62,7 @@ export default function ProductsPage() {
   const [showRecipeDetailModal, setShowRecipeDetailModal] = useState(false)
   const [recipeProductId, setRecipeProductId] = useState<string>('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const [templateOptions, setTemplateOptions] = useState<Array<{ value: string, label: string }>>([])
   const [formData, setFormData] = useState({
     productCode: '',
     productName: '',
@@ -68,14 +70,15 @@ export default function ProductsPage() {
     category: '',
     description: '',
     warrantyTerms: '',
-    thickness: ''
+    thickness: '',
+    templateImage: 'Certification-Form.jpg'
   })
 
   const categories = [
     'TECO', 'RIGID'
   ]
 
-  const thicknessOptions = [3, 5, 10, 20, 25, 50]
+  const thicknessOptions = [3, 5, 10, 20, 25, 25.4, 50, 50.8]
 
   useEffect(() => {
     if (status === 'loading') return
@@ -85,7 +88,38 @@ export default function ProductsPage() {
     }
 
     fetchProducts()
+    fetchTemplates()
   }, [session, status, router, searchTerm, selectedCategory])
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await fetch('/api/templates', {
+        cache: 'no-store'
+      })
+      const data = await response.json()
+      if (response.ok && data.templates) {
+        // แปลง templates เป็น options สำหรับ dropdown
+        const options = data.templates.map((template: any) => ({
+          value: template.filename,
+          label: template.filename === 'Certification-Form.jpg'
+            ? 'เทมเพลทมาตรฐาน (Certification-Form.jpg)'
+            : template.filename.replace('Certification-Form-', '').replace('.jpg', '')
+        }))
+        setTemplateOptions(options)
+      } else {
+        // ถ้า error ใช้ default template
+        setTemplateOptions([
+          { value: 'Certification-Form.jpg', label: 'เทมเพลทมาตรฐาน (Certification-Form.jpg)' }
+        ])
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error)
+      // ถ้า error ใช้ default template
+      setTemplateOptions([
+        { value: 'Certification-Form.jpg', label: 'เทมเพลทมาตรฐาน (Certification-Form.jpg)' }
+      ])
+    }
+  }
 
   const fetchProducts = async () => {
     try {
@@ -162,7 +196,8 @@ export default function ProductsPage() {
       category: product.category,
       description: product.description || '',
       warrantyTerms: product.warrantyTerms || '',
-      thickness: product.thickness ? String(product.thickness) : ''
+      thickness: product.thickness ? String(product.thickness) : '',
+      templateImage: product.templateImage || 'Certification-Form.jpg'
     })
     setShowAddForm(true)
   }
@@ -195,7 +230,8 @@ export default function ProductsPage() {
       category: '',
       description: '',
       warrantyTerms: '',
-      thickness: ''
+      thickness: '',
+      templateImage: 'Certification-Form.jpg'
     })
   }
 
@@ -378,7 +414,10 @@ export default function ProductsPage() {
                   {/* สูตรการผลิต */}
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     {product.recipe ? (
-                      <div className="flex items-center justify-between">
+                      <div
+                        onClick={() => handleOpenRecipeModal(product.id, true)}
+                        className="flex items-center justify-between cursor-pointer hover:bg-green-50 p-2 rounded-md transition-colors"
+                      >
                         <div className="flex items-center text-sm text-green-600">
                           <ChefHat className="h-4 w-4 mr-1" />
                           <span>{product.recipe.recipeName}</span>
@@ -391,9 +430,13 @@ export default function ProductsPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center text-sm text-gray-400">
+                      <div
+                        onClick={() => handleOpenRecipeModal(product.id, false)}
+                        className="flex items-center text-sm text-gray-400 cursor-pointer hover:bg-blue-50 hover:text-blue-600 p-2 rounded-md transition-colors"
+                        title="คลิกเพื่อเพิ่มสูตรการผลิต"
+                      >
                         <ChefHat className="h-4 w-4 mr-1" />
-                        <span>ยังไม่มีสูตรการผลิต</span>
+                        <span>👨‍🍳 ยังไม่มีสูตรการผลิต</span>
                       </div>
                     )}
                   </div>
@@ -492,6 +535,24 @@ export default function ProductsPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">เทมเพลทใบรับประกัน</label>
+                  <select
+                    value={formData.templateImage}
+                    onChange={(e) => setFormData({ ...formData, templateImage: e.target.value })}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    {templateOptions.map((template) => (
+                      <option key={template.value} value={template.value}>
+                        {template.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    เลือกเทมเพลทที่ใช้สำหรับออกใบรับประกัน
+                  </p>
                 </div>
 
                 {/* ปิดช่องเลือกตัวแทนจำหน่าย */}
@@ -649,7 +710,7 @@ export default function ProductsPage() {
                       >
                         ดูรายละเอียดสูตร
                       </button>
-                      {(session?.user.role === 'Admin' || session?.user.role === 'Manager') && (
+                      {session?.user.userGroup === 'HeadOffice' && (
                         <button
                           onClick={() => {
                             setRecipeProductId(selectedProduct.id)
@@ -671,7 +732,7 @@ export default function ProductsPage() {
                   <div className="bg-gray-50 p-4 rounded-md text-center">
                     <ChefHat className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-gray-500 mb-3">ยังไม่มีสูตรการผลิตสำหรับสินค้านี้</p>
-                    {(session?.user.role === 'Admin' || session?.user.role === 'Manager') && (
+                    {session?.user.userGroup === 'HeadOffice' && (
                       <button
                         onClick={() => {
                           setRecipeProductId(selectedProduct.id)
@@ -728,38 +789,49 @@ export default function ProductsPage() {
       )}
 
       {/* Recipe Modals */}
-      <RecipeModal
-        isOpen={showRecipeModal}
-        onClose={() => {
-          setShowRecipeModal(false)
-          setRecipeProductId('')
-          router.refresh()
-          fetchProducts()
-        }}
-        productId={recipeProductId}
-        productName={products.find(p => p.id === recipeProductId)?.productName || ''}
-        existingRecipe={products.find(p => p.id === recipeProductId)?.recipe ? {
-          id: products.find(p => p.id === recipeProductId)?.recipe?.id || '',
-          recipeName: products.find(p => p.id === recipeProductId)?.recipe?.recipeName || '',
-          version: products.find(p => p.id === recipeProductId)?.recipe?.version || '',
-          isActive: products.find(p => p.id === recipeProductId)?.recipe?.isActive || true,
-          items: []
-        } : null}
-        onSave={handleRecipeSaved}
-      />
+      {(() => {
+        // หา product ที่ตรงกับ recipeProductId เพื่อป้องกันการ find ซ้ำๆ
+        const selectedProductForRecipe = products.find(p => p.id === recipeProductId)
 
-      <RecipeDetailModal
-        isOpen={showRecipeDetailModal}
-        onClose={() => {
-          setShowRecipeDetailModal(false)
-          setRecipeProductId('')
-          router.refresh()
-          fetchProducts()
-        }}
-        productId={recipeProductId}
-        onEdit={handleEditRecipe}
-        onDelete={handleRecipeDeleted}
-      />
+        return (
+          <>
+            <RecipeModal
+              key={`recipe-modal-${recipeProductId}`}
+              isOpen={showRecipeModal}
+              onClose={() => {
+                setShowRecipeModal(false)
+                setRecipeProductId('')
+                router.refresh()
+                fetchProducts()
+              }}
+              productId={recipeProductId}
+              productName={selectedProductForRecipe?.productName || ''}
+              existingRecipe={selectedProductForRecipe?.recipe ? {
+                id: selectedProductForRecipe.recipe.id,
+                recipeName: selectedProductForRecipe.recipe.recipeName,
+                version: selectedProductForRecipe.recipe.version,
+                isActive: selectedProductForRecipe.recipe.isActive,
+                items: []
+              } : null}
+              onSave={handleRecipeSaved}
+            />
+
+            <RecipeDetailModal
+              key={`recipe-detail-modal-${recipeProductId}`}
+              isOpen={showRecipeDetailModal}
+              onClose={() => {
+                setShowRecipeDetailModal(false)
+                setRecipeProductId('')
+                router.refresh()
+                fetchProducts()
+              }}
+              productId={recipeProductId}
+              onEdit={handleEditRecipe}
+              onDelete={handleRecipeDeleted}
+            />
+          </>
+        )
+      })()}
     </DashboardLayout>
   )
 }

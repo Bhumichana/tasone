@@ -23,7 +23,8 @@
       "Bash(cmd /c:*)",
       "Bash(timeout:*)",
       "Bash(npm run:*)",
-      "Bash(dir)"
+      "Bash(dir)",
+      "Read(//g/**)"
     ],
     "deny": [],
     "ask": []

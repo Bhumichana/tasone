@@ -8,6 +8,8 @@ import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Textarea } from '@/components/ui/textarea'
+import ThaiDatePicker from '@/components/ui/ThaiDatePicker'
+import { format } from 'date-fns'
 
 interface RawMaterial {
   id: string
@@ -25,6 +27,7 @@ interface ReceivingFormData {
   batchNumber: string
   receivedQuantity: string
   storageLocation: string
+  expiryDate: string
   notes: string
 }
 
@@ -57,6 +60,7 @@ export default function ReceivingForm({
     batchNumber: '',
     receivedQuantity: '',
     storageLocation: '',
+    expiryDate: '',
     notes: '',
     ...initialData
   })
@@ -150,12 +154,15 @@ export default function ReceivingForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="receivingDate">วันที่รับเข้าสินค้า *</Label>
-            <Input
-              id="receivingDate"
-              type="date"
-              value={formData.receivingDate}
-              onChange={(e) => handleInputChange('receivingDate', e.target.value)}
-              className={errors.receivingDate ? 'border-red-500' : ''}
+            <ThaiDatePicker
+              selected={formData.receivingDate ? new Date(formData.receivingDate) : null}
+              onChange={(date) => {
+                if (date) {
+                  handleInputChange('receivingDate', format(date, 'yyyy-MM-dd'))
+                }
+              }}
+              placeholderText="เลือกวันที่รับเข้าสินค้า"
+              className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.receivingDate ? 'border-red-500' : ''}`}
             />
             {errors.receivingDate && (
               <p className="text-sm text-red-500 mt-1">{errors.receivingDate}</p>
@@ -259,6 +266,29 @@ export default function ReceivingForm({
               <p className="text-sm text-red-500 mt-1">{errors.receivedQuantity}</p>
             )}
           </div>
+        </div>
+
+        {/* วันหมดอายุ */}
+        <div>
+          <Label htmlFor="expiryDate">วันหมดอายุ</Label>
+          <ThaiDatePicker
+            selected={formData.expiryDate ? new Date(formData.expiryDate) : null}
+            onChange={(date) => {
+              if (date) {
+                handleInputChange('expiryDate', format(date, 'yyyy-MM-dd'))
+              } else {
+                handleInputChange('expiryDate', '')
+              }
+            }}
+            placeholderText="เลือกวันหมดอายุ"
+            className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.expiryDate ? 'border-red-500' : ''}`}
+          />
+          {errors.expiryDate && (
+            <p className="text-sm text-red-500 mt-1">{errors.expiryDate}</p>
+          )}
+          <p className="text-xs text-gray-500 mt-1">
+            ระบุวันหมดอายุของวัตถุดิบ (ถ้ามี) เพื่อป้องกันการใช้วัตถุดิบที่หมดอายุ
+          </p>
         </div>
 
         {/* สถานที่เก็บ */}

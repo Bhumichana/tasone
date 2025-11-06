@@ -44,9 +44,6 @@ export default function RawMaterialsPage() {
     description: '',
     unit: '',
     supplier: '',
-    location: '',
-    expiryDate: '',
-    batchNumber: '',
     minStock: '',
     currentStock: '0'
   })
@@ -167,9 +164,6 @@ export default function RawMaterialsPage() {
       description: material.description || '',
       unit: material.unit,
       supplier: material.supplier || '',
-      location: material.location || '',
-      expiryDate: material.expiryDate ? new Date(material.expiryDate).toISOString().split('T')[0] : '',
-      batchNumber: material.batchNumber || '',
       minStock: material.minStock.toString(),
       currentStock: material.currentStock.toString()
     })
@@ -209,9 +203,6 @@ export default function RawMaterialsPage() {
       description: '',
       unit: '',
       supplier: '',
-      location: '',
-      expiryDate: '',
-      batchNumber: '',
       minStock: '',
       currentStock: '0'
     })
@@ -245,7 +236,7 @@ export default function RawMaterialsPage() {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center">
               <Package className="h-6 w-6 text-navy-900 mr-3" />
-              <h1 className="text-2xl font-bold text-navy-900">จัดการวัตถุดิบ</h1>
+              <h1 className="text-2xl font-bold text-navy-900">จัดการรหัสวัตถุดิบ</h1>
             </div>
             {session?.user.userGroup === 'HeadOffice' && (
               <button
@@ -253,7 +244,7 @@ export default function RawMaterialsPage() {
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-navy-900 hover:bg-navy-700 hover:shadow-lg transform hover:scale-105 transition-all duration-200 ease-in-out"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                เพิ่มวัตถุดิบใหม่
+                สร้างรหัสวัตถุดิบใหม่
               </button>
             )}
           </div>
@@ -435,7 +426,7 @@ export default function RawMaterialsPage() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
             <h3 className="text-lg font-bold text-gray-900 mb-4">
-              {editingMaterial ? 'แก้ไขวัตถุดิบ' : 'เพิ่มวัตถุดิบใหม่'}
+              {editingMaterial ? 'แก้ไขรหัสวัตถุดิบ' : 'สร้างรหัสวัตถุดิบใหม่'}
             </h3>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -488,48 +479,15 @@ export default function RawMaterialsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">ผู้จัดหา</label>
-                  <input
-                    type="text"
-                    value={formData.supplier}
-                    onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="ชื่อบริษัท/ผู้จัดหา"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">สถานที่จัดเก็บ</label>
-                  <input
-                    type="text"
-                    value={formData.location}
-                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="HO-PATHUM-1, HO-PATHUM-2"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">วันหมดอายุ</label>
-                  <DatePicker
-                    value={formData.expiryDate}
-                    onChange={(date) => setFormData({ ...formData, expiryDate: date })}
-                    placeholder="เลือกวันหมดอายุ"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">หมายเลข Batch</label>
-                  <input
-                    type="text"
-                    value={formData.batchNumber}
-                    onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })}
-                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-                    placeholder="B001-2024"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">ผู้จัดหา</label>
+                <input
+                  type="text"
+                  value={formData.supplier}
+                  onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  placeholder="ชื่อบริษัท/ผู้จัดหา"
+                />
               </div>
 
               <div>

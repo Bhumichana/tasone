@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@prisma/client', 'prisma'],
+  reactStrictMode: false,
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
@@ -11,12 +12,11 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  // ปิด error overlay ใน development mode
+  // Dev indicators configuration
   devIndicators: {
-    buildActivity: true,
-    buildActivityPosition: 'bottom-right',
+    position: 'bottom-right',
   },
-  // ปิด Fast Refresh error overlay
+  // Optimize on-demand entries
   onDemandEntries: {
     maxInactiveAge: 60 * 1000,
     pagesBufferLength: 5,

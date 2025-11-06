@@ -20,6 +20,7 @@ interface RawMaterialReceiving {
   batchNumber: string
   receivedQuantity: number
   storageLocation: string
+  expiryDate?: string
   qualityStatus: string
   notes?: string
   receivedBy: string
@@ -50,6 +51,7 @@ interface ReceivingFormData {
   batchNumber: string
   receivedQuantity: string
   storageLocation: string
+  expiryDate: string
   notes: string
   qualityStatus: string
 }
@@ -300,6 +302,7 @@ export default function RawMaterialReceivingPage() {
               batchNumber: editingReceiving.batchNumber,
               receivedQuantity: editingReceiving.receivedQuantity.toString(),
               storageLocation: editingReceiving.storageLocation,
+              expiryDate: editingReceiving.expiryDate || '',
               notes: editingReceiving.notes || '',
               qualityStatus: editingReceiving.qualityStatus
             } : undefined}

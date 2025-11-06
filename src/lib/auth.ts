@@ -96,6 +96,7 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user }) {
+      // Initial sign in - user object is available
       if (user && 'userGroup' in user) {
         token.userGroup = user.userGroup
         token.role = user.role
@@ -107,6 +108,7 @@ export const authOptions: NextAuthOptions = {
         token.username = user.username
         token.avatarUrl = user.avatarUrl
       }
+
       return token
     },
     async session({ session, token }) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,6 @@ interface UserProfile {
 export default function ProfilePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const isRedirectingRef = useRef(false); // Flag to prevent state updates during redirect
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -98,42 +97,31 @@ export default function ProfilePage() {
 
   // Handle file upload
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    // Don't process if redirecting
-    if (isRedirectingRef.current) return;
-
     const file = event.target.files?.[0];
     if (!file) return;
 
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      if (!isRedirectingRef.current) {
-        setMessage({ type: 'error', text: 'รองรับเฉพาะไฟล์ JPEG, PNG และ WebP เท่านั้น' });
-      }
+      setMessage({ type: 'error', text: 'รองรับเฉพาะไฟล์ JPEG, PNG และ WebP เท่านั้น' });
       return;
     }
 
     // Validate file size (5MB max)
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      if (!isRedirectingRef.current) {
-        setMessage({ type: 'error', text: 'ไฟล์มีขนาดใหญ่เกินไป (สูงสุด 5MB)' });
-      }
+      setMessage({ type: 'error', text: 'ไฟล์มีขนาดใหญ่เกินไป (สูงสุด 5MB)' });
       return;
     }
 
-    if (!isRedirectingRef.current) {
-      setUploading(true);
-      setMessage(null);
-    }
+    setUploading(true);
+    setMessage(null);
 
     try {
       // Show preview
       const reader = new FileReader();
       reader.onload = (e) => {
-        if (!isRedirectingRef.current) {
-          setPreviewUrl(e.target?.result as string);
-        }
+        setPreviewUrl(e.target?.result as string);
       };
       reader.readAsDataURL(file);
 
@@ -146,27 +134,21 @@ export default function ProfilePage() {
         body: uploadFormData,
       });
 
-      if (isRedirectingRef.current) return;
-
       const result = await response.json();
 
-      if (response.ok && !isRedirectingRef.current) {
+      if (response.ok) {
         setProfile(prev => prev ? { ...prev, profileImage: result.url } : null);
         setMessage({ type: 'success', text: 'อัพโหลดรูปภาพสำเร็จ! กรุณากด "บันทึกข้อมูล" เพื่อยืนยันการเปลี่ยนแปลง' });
-      } else if (!isRedirectingRef.current) {
+      } else {
         setMessage({ type: 'error', text: result.error || 'เกิดข้อผิดพลาดในการอัพโหลด' });
         setPreviewUrl(null);
       }
     } catch (error) {
       console.error('Upload error:', error);
-      if (!isRedirectingRef.current) {
-        setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัพโหลด' });
-        setPreviewUrl(null);
-      }
+      setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัพโหลด' });
+      setPreviewUrl(null);
     } finally {
-      if (!isRedirectingRef.current) {
-        setUploading(false);
-      }
+      setUploading(false);
     }
   };
 
@@ -174,36 +156,30 @@ export default function ProfilePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Prevent multiple submissions
-    if (isRedirectingRef.current) return;
+    const updateData: any = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      username: formData.username,
+      phoneNumber: formData.phoneNumber
+    };
 
-    setSaving(true);
-    setMessage(null);
+    // เฉพาะ HeadOffice เท่านั้นที่สามารถแก้ไข role และ userGroup ได้
+    if (session?.user?.userGroup === 'HeadOffice') {
+      updateData.role = formData.role;
+      updateData.userGroup = formData.userGroup;
+    }
+
+    // Include profile image if it was updated
+    if (profile?.profileImage) {
+      updateData.profileImage = profile.profileImage;
+    }
+
+    // เพิ่มรหัสผ่านเฉพาะเมื่อมีการกรอก
+    if (formData.password && formData.password.trim()) {
+      updateData.password = formData.password;
+    }
 
     try {
-      const updateData: any = {
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        username: formData.username,
-        phoneNumber: formData.phoneNumber
-      };
-
-      // เฉพาะ HeadOffice เท่านั้นที่สามารถแก้ไข role และ userGroup ได้
-      if (session?.user?.userGroup === 'HeadOffice') {
-        updateData.role = formData.role;
-        updateData.userGroup = formData.userGroup;
-      }
-
-      // Include profile image if it was updated
-      if (profile?.profileImage) {
-        updateData.profileImage = profile.profileImage;
-      }
-
-      // เพิ่มรหัสผ่านเฉพาะเมื่อมีการกรอก
-      if (formData.password.trim()) {
-        updateData.password = formData.password;
-      }
-
       const response = await fetch('/api/user/update', {
         method: 'PUT',
         headers: {
@@ -212,45 +188,24 @@ export default function ProfilePage() {
         body: JSON.stringify(updateData),
       });
 
-      // ถ้าบันทึกสำเร็จ → logout และ redirect ไป login
       if (response.ok) {
-        isRedirectingRef.current = true;
-
-        // ซ่อน error overlay ของ Next.js (ถ้ามี)
-        if (typeof window !== 'undefined') {
-          const errorOverlay = document.querySelector('nextjs-portal');
-          if (errorOverlay) {
-            errorOverlay.remove();
-          }
-        }
-
-        // Logout และ redirect ไป login page พร้อมข้อความ
+        // บันทึกสำเร็จ - ต้อง logout และ login ใหม่เพื่ออัปเดต session
         await signOut({
-          callbackUrl: '/login?message=อัปเดตข้อมูลสำเร็จ กรุณาเข้าสู่ระบบอีกครั้งเพื่อดูการเปลี่ยนแปลง',
+          callbackUrl: '/login?message=' + encodeURIComponent('อัปเดตข้อมูลสำเร็จ! กรุณาเข้าสู่ระบบอีกครั้ง'),
           redirect: true
         });
-
-        // Throw error เพื่อหยุดการทำงานทันที
-        throw new Error('REDIRECTING');
+        return; // หยุดการทำงานทันที
       }
 
-      // Only parse JSON and update state for error cases
-      if (!isRedirectingRef.current) {
-        const result = await response.json();
-        setMessage({ type: 'error', text: result.error || 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล' });
-        setSaving(false);
-      }
-    } catch (error: any) {
-      // ไม่แสดง error ถ้ากำลัง redirect
-      if (error?.message === 'REDIRECTING') {
-        return;
-      }
+      // กรณี error
+      const result = await response.json();
+      setMessage({ type: 'error', text: result.error || 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล' });
+      setSaving(false);
 
+    } catch (error) {
       console.error('Error updating profile:', error);
-      if (!isRedirectingRef.current) {
-        setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล' });
-        setSaving(false);
-      }
+      setMessage({ type: 'error', text: 'เกิดข้อผิดพลาดในการอัปเดทข้อมูล' });
+      setSaving(false);
     }
   };
 

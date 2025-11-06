@@ -89,10 +89,10 @@ export default function MaterialUsageTable({
                             {batch.batchNumber}
                           </span>
                           <span className="text-gray-600">
-                            → {batch.quantityUsed.toFixed(2)} {item.unit}
+                            → {batch.quantityUsed.toFixed(3)} {item.unit}
                           </span>
                           <span className="text-xs text-gray-400">
-                            (มี {batch.batchStock.toFixed(2)})
+                            (มี {batch.batchStock.toFixed(3)})
                           </span>
                         </div>
                       ))}
@@ -106,7 +106,7 @@ export default function MaterialUsageTable({
                 </td>
                 <td className="px-3 py-2 text-right">
                   <span className="text-sm font-semibold text-gray-900">
-                    {item.totalQuantity.toFixed(2)} {item.unit}
+                    {item.totalQuantity.toFixed(3)} {item.unit}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right">

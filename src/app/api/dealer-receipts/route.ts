@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/db'
 
 // GET - ดึงรายการ Incoming Materials สำหรับ Dealer
 export async function GET(request: NextRequest) {
@@ -40,7 +38,7 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    const receipts = await prisma.dealerReceipt.findMany({
+    const rawReceipts = await prisma.dealerReceipt.findMany({
       where: whereClause,
       include: {
         materialDelivery: {
@@ -60,13 +58,22 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    // Filter receipts to ensure all delivery items have valid rawMaterial
+    const receipts = rawReceipts.filter(receipt => {
+      const hasValidItems = receipt.materialDelivery.items.every(item => item.rawMaterial !== null)
+      if (!hasValidItems) {
+        console.warn(`Receipt ${receipt.receiptNumber} has delivery items with missing rawMaterial data`)
+      }
+      return hasValidItems
+    })
+
     // Get pending deliveries (ที่ยังไม่มี receipt)
     let pendingDeliveries: any[] = []
     if (session.user.userGroup === 'Dealer' && session.user.dealerId) {
-      pendingDeliveries = await prisma.materialDelivery.findMany({
+      const rawDeliveries = await prisma.materialDelivery.findMany({
         where: {
           dealerId: session.user.dealerId,
-          status: 'DELIVERED',
+          status: 'PENDING_RECEIPT', // รอดีลเลอร์รับเข้า
           dealerReceipt: null // ยังไม่มี receipt
         },
         include: {
@@ -81,11 +88,21 @@ export async function GET(request: NextRequest) {
           deliveryDate: 'desc'
         }
       })
+
+      // Filter out deliveries with invalid items (missing rawMaterial)
+      pendingDeliveries = rawDeliveries.filter(delivery => {
+        // ตรวจสอบว่าทุก item มี rawMaterial หรือไม่
+        const hasValidItems = delivery.items.every(item => item.rawMaterial !== null)
+        if (!hasValidItems) {
+          console.warn(`Delivery ${delivery.deliveryNumber} has items with missing rawMaterial data`)
+        }
+        return hasValidItems
+      })
     } else if (session.user.userGroup === 'HeadOffice') {
       // HeadOffice สามารถดู pending deliveries ทั้งหมด
-      pendingDeliveries = await prisma.materialDelivery.findMany({
+      const rawDeliveries = await prisma.materialDelivery.findMany({
         where: {
-          status: 'DELIVERED',
+          status: 'PENDING_RECEIPT', // รอดีลเลอร์รับเข้า
           dealerReceipt: null
         },
         include: {
@@ -99,6 +116,15 @@ export async function GET(request: NextRequest) {
         orderBy: {
           deliveryDate: 'desc'
         }
+      })
+
+      // Filter out deliveries with invalid items
+      pendingDeliveries = rawDeliveries.filter(delivery => {
+        const hasValidItems = delivery.items.every(item => item.rawMaterial !== null)
+        if (!hasValidItems) {
+          console.warn(`Delivery ${delivery.deliveryNumber} has items with missing rawMaterial data`)
+        }
+        return hasValidItems
       })
     }
 
@@ -151,7 +177,7 @@ export async function POST(request: NextRequest) {
       where: {
         id: materialDeliveryId,
         dealerId: session.user.dealerId,
-        status: 'DELIVERED'
+        status: 'PENDING_RECEIPT' // ต้องเป็นสถานะรอรับเข้า
       }
     })
 
@@ -218,6 +244,14 @@ export async function POST(request: NextRequest) {
           throw new Error(`ไม่พบวัตถุดิบ ID: ${item.rawMaterialId}`)
         }
 
+        // ดึงข้อมูล batch เพื่อเอา expiryDate
+        const batch = await tx.rawMaterialBatch.findFirst({
+          where: {
+            rawMaterialId: item.rawMaterialId,
+            batchNumber: item.batchNumber
+          }
+        })
+
         // Create receipt item
         await tx.dealerReceiptItem.create({
           data: {
@@ -246,6 +280,7 @@ export async function POST(request: NextRequest) {
               currentStock: {
                 increment: item.receivedQuantity
               },
+              expiryDate: batch?.expiryDate, // อัปเดต expiryDate ด้วย
               lastUpdated: new Date()
             }
           })
@@ -259,11 +294,20 @@ export async function POST(request: NextRequest) {
               batchNumber: item.batchNumber,
               currentStock: item.receivedQuantity,
               unit: item.unit,
+              expiryDate: batch?.expiryDate, // บันทึก expiryDate จาก batch
               lastUpdated: new Date()
             }
           })
         }
       }
+
+      // Update MaterialDelivery status to DELIVERED (เปลี่ยนจาก PENDING_RECEIPT -> DELIVERED)
+      await tx.materialDelivery.update({
+        where: { id: materialDeliveryId },
+        data: {
+          status: 'DELIVERED'
+        }
+      })
 
       return receipt
     })

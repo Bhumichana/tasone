@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       batchNumber,
       receivedQuantity,
       storageLocation,
+      expiryDate,
       notes,
       qualityStatus = 'APPROVED' // Auto-approve ทันทีเมื่อรับเข้า
     } = body
@@ -175,6 +176,7 @@ export async function POST(request: NextRequest) {
           batchNumber,
           receivedQuantity: parseFloat(receivedQuantity),
           storageLocation,
+          expiryDate: expiryDate ? new Date(expiryDate) : null,
           notes,
           qualityStatus,
           receivedBy: `${session.user.firstName} ${session.user.lastName}`
@@ -203,7 +205,7 @@ export async function POST(request: NextRequest) {
           unit: rawMaterial.unit,
           supplier,
           receivedDate: new Date(receivingDate),
-          expiryDate: null, // สามารถเพิ่ม field นี้ใน form ได้ในอนาคต
+          expiryDate: expiryDate ? new Date(expiryDate) : null, // บันทึกวันหมดอายุ (ถ้ามี)
           storageLocation,
           status: 'AVAILABLE'
         }

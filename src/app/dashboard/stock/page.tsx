@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +15,8 @@ import {
   TrendingDown,
   Archive,
   Filter,
-  RefreshCw
+  RefreshCw,
+  Calendar
 } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 
@@ -27,6 +28,7 @@ interface DealerStock {
   batchNumber: string
   currentStock: number
   unit: string
+  expiryDate: string | null
   lastUpdated: string
   dealer: {
     id: string
@@ -93,6 +95,33 @@ export default function StockPage() {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const formatExpiryDate = (dateString: string | null) => {
+    if (!dateString) return '-'
+    return new Date(dateString).toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  const getExpiryStatus = (expiryDate: string | null) => {
+    if (!expiryDate) return null
+
+    const now = new Date()
+    const expiry = new Date(expiryDate)
+    const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (daysUntilExpiry < 0) {
+      return { label: 'หมดอายุแล้ว', color: 'bg-red-100 text-red-800' }
+    } else if (daysUntilExpiry <= 30) {
+      return { label: 'ใกล้หมดอายุ', color: 'bg-orange-100 text-orange-800' }
+    } else if (daysUntilExpiry <= 90) {
+      return { label: 'เตือน', color: 'bg-yellow-100 text-yellow-800' }
+    } else {
+      return { label: 'ปกติ', color: 'bg-green-100 text-green-800' }
+    }
   }
 
   const getStockStatus = (stock: number) => {
@@ -285,49 +314,124 @@ export default function StockPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b">
+                    <tr className="border-b bg-gray-50">
                       <th className="text-left p-4 font-medium text-gray-900">วัตถุดิบ</th>
                       <th className="text-left p-4 font-medium text-gray-900">Batch Number</th>
                       <th className="text-left p-4 font-medium text-gray-900">สต็อกปัจจุบัน</th>
                       <th className="text-left p-4 font-medium text-gray-900">หน่วย</th>
+                      <th className="text-left p-4 font-medium text-gray-900">วันหมดอายุ</th>
                       <th className="text-left p-4 font-medium text-gray-900">สถานะ</th>
                       <th className="text-left p-4 font-medium text-gray-900">อัปเดตล่าสุด</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {stocks.map((stock) => (
-                      <tr key={stock.id} className="border-b hover:bg-gray-50">
-                        <td className="p-4">
-                          <div className="font-medium text-gray-900">{stock.materialName}</div>
-                          <div className="text-sm text-gray-500">
-                            {stock.materialCode} • {stock.materialType}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="font-mono text-sm text-blue-600">
-                            {stock.batchNumber}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className={`text-lg font-semibold ${
-                            stock.currentStock === 0
-                              ? 'text-red-600'
-                              : stock.currentStock <= 10
-                                ? 'text-yellow-600'
-                                : 'text-green-600'
-                          }`}>
-                            {stock.currentStock.toLocaleString()}
-                          </div>
-                        </td>
-                        <td className="p-4 text-gray-700">{stock.unit}</td>
-                        <td className="p-4">
-                          {getStockBadge(stock.currentStock)}
-                        </td>
-                        <td className="p-4 text-gray-600 text-sm">
-                          {formatDate(stock.lastUpdated)}
-                        </td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      // จัดกลุ่มข้อมูลตาม materialCode
+                      const groupedStocks = stocks.reduce((acc, stock) => {
+                        if (!acc[stock.materialCode]) {
+                          acc[stock.materialCode] = []
+                        }
+                        acc[stock.materialCode].push(stock)
+                        return acc
+                      }, {} as Record<string, typeof stocks>)
+
+                      return Object.entries(groupedStocks).map(([materialCode, materialStocks], groupIndex) => {
+                        const firstStock = materialStocks[0]
+                        const totalStockForMaterial = materialStocks.reduce((sum, s) => sum + s.currentStock, 0)
+                        const batchCount = materialStocks.length
+
+                        return (
+                          <React.Fragment key={materialCode}>
+                            {/* Header row for material group */}
+                            <tr className="bg-blue-50 border-b-2 border-blue-200">
+                              <td className="p-4" colSpan={7}>
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="font-bold text-gray-900 text-base">
+                                      {firstStock.materialName}
+                                    </div>
+                                    <div className="text-sm text-gray-600 mt-1">
+                                      {firstStock.materialCode} • {firstStock.materialType}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                    <div className="text-right">
+                                      <div className="text-xs text-gray-600">จำนวน Batch</div>
+                                      <div className="text-lg font-bold text-blue-600">{batchCount}</div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-xs text-gray-600">สต็อกรวม</div>
+                                      <div className="text-lg font-bold text-green-600">
+                                        {totalStockForMaterial.toLocaleString()} {firstStock.unit}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {/* Batch rows */}
+                            {materialStocks.map((stock, index) => {
+                              const expiryStatus = getExpiryStatus(stock.expiryDate)
+                              return (
+                                <tr
+                                  key={stock.id}
+                                  className={`border-b hover:bg-gray-50 ${
+                                    index === materialStocks.length - 1 ? 'border-b-2 border-gray-300' : ''
+                                  }`}
+                                >
+                                  <td className="p-4 pl-8">
+                                    <div className="text-sm text-gray-500">
+                                      ↳ Batch #{index + 1}
+                                    </div>
+                                  </td>
+                                  <td className="p-4">
+                                    <div className="font-mono text-sm text-blue-600 font-medium">
+                                      {stock.batchNumber}
+                                    </div>
+                                  </td>
+                                  <td className="p-4">
+                                    <div className={`text-lg font-semibold ${
+                                      stock.currentStock === 0
+                                        ? 'text-red-600'
+                                        : stock.currentStock <= 10
+                                          ? 'text-yellow-600'
+                                          : 'text-green-600'
+                                    }`}>
+                                      {stock.currentStock.toLocaleString()}
+                                    </div>
+                                  </td>
+                                  <td className="p-4 text-gray-700">{stock.unit}</td>
+                                  <td className="p-4">
+                                    {stock.expiryDate ? (
+                                      <div className="space-y-1">
+                                        <div className="text-sm text-gray-900 flex items-center gap-1">
+                                          <Calendar className="h-3 w-3 text-gray-400" />
+                                          {formatExpiryDate(stock.expiryDate)}
+                                        </div>
+                                        {expiryStatus && (
+                                          <Badge className={`${expiryStatus.color} text-xs`}>
+                                            {expiryStatus.label}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-400 text-sm">-</span>
+                                    )}
+                                  </td>
+                                  <td className="p-4">
+                                    {getStockBadge(stock.currentStock)}
+                                  </td>
+                                  <td className="p-4 text-gray-600 text-sm">
+                                    {formatDate(stock.lastUpdated)}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </React.Fragment>
+                        )
+                      })
+                    })()}
                   </tbody>
                 </table>
               </div>

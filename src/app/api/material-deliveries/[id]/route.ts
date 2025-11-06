@@ -33,7 +33,13 @@ export async function GET(
           }
         },
         items: {
-          include: {
+          select: {
+            id: true,
+            rawMaterialId: true,
+            batchId: true, // ✅ เลือก batchId อย่างชัดเจน
+            batchNumber: true,
+            quantity: true,
+            unit: true,
             rawMaterial: {
               select: {
                 id: true,
@@ -41,6 +47,13 @@ export async function GET(
                 materialName: true,
                 materialType: true,
                 unit: true,
+                currentStock: true
+              }
+            },
+            batch: {
+              select: {
+                id: true,
+                batchNumber: true,
                 currentStock: true
               }
             }
@@ -109,29 +122,12 @@ export async function PUT(
       )
     }
 
-    // ตรวจสอบสต็อกก่อนหัก (ถ้าเปลี่ยนสถานะเป็น SHIPPING)
-    if (status === 'SHIPPING' && existingDelivery.status === 'PREPARING') {
-      const itemsToProcess = items || existingDelivery.items
-
-      for (const item of itemsToProcess) {
-        const rawMaterial = await prisma.rawMaterial.findUnique({
-          where: { id: item.rawMaterialId }
-        })
-
-        if (!rawMaterial) {
-          return NextResponse.json(
-            { error: `Raw material not found: ${item.rawMaterialId}` },
-            { status: 404 }
-          )
-        }
-
-        if (rawMaterial.currentStock < item.quantity) {
-          return NextResponse.json(
-            { error: `Insufficient stock for ${rawMaterial.materialName}. Available: ${rawMaterial.currentStock}, Required: ${item.quantity}` },
-            { status: 400 }
-          )
-        }
-      }
+    // ห้ามแก้ไขถ้าสถานะเป็น DELIVERED แล้ว
+    if (existingDelivery.status === 'DELIVERED') {
+      return NextResponse.json(
+        { error: 'Cannot edit delivery that has been received by dealer' },
+        { status: 400 }
+      )
     }
 
     // สร้าง updateData
@@ -149,51 +145,103 @@ export async function PUT(
 
     // ใช้ Transaction เพื่อความปลอดภัย
     const updatedDelivery = await prisma.$transaction(async (tx) => {
-      // ถ้าเปลี่ยนสถานะเป็น SHIPPING - หักสต็อก
-      if (status === 'SHIPPING' && existingDelivery.status === 'PREPARING') {
-        const itemsToProcess = items || existingDelivery.items
-
-        for (const item of itemsToProcess) {
-          await tx.rawMaterial.update({
-            where: { id: item.rawMaterialId },
-            data: {
-              currentStock: {
-                decrement: parseFloat(item.quantity)
-              }
-            }
-          })
-        }
-      }
-
-      // ถ้าเปลี่ยนสถานะจาก SHIPPING กลับเป็น PREPARING - คืนสต็อก
-      if (status === 'PREPARING' && existingDelivery.status === 'SHIPPING') {
-        for (const item of existingDelivery.items) {
-          await tx.rawMaterial.update({
-            where: { id: item.rawMaterialId },
-            data: {
-              currentStock: {
-                increment: item.quantity
-              }
-            }
-          })
-        }
-      }
-
       // ถ้ามีการอัปเดตรายการ
       if (items) {
-        // ลบรายการเดิมทั้งหมด
+        // ✅ ขั้นตอนที่ 1: คืนสต็อกของรายการเดิมก่อน
+        for (const oldItem of existingDelivery.items) {
+          // คืนสต็อกให้ Batch
+          await tx.rawMaterialBatch.update({
+            where: { id: oldItem.batchId! },
+            data: {
+              currentStock: {
+                increment: oldItem.quantity
+              },
+              status: 'AVAILABLE' // เปลี่ยนสถานะกลับเป็น AVAILABLE
+            }
+          })
+
+          // คืนสต็อกให้ RawMaterial
+          await tx.rawMaterial.update({
+            where: { id: oldItem.rawMaterialId },
+            data: {
+              currentStock: {
+                increment: oldItem.quantity
+              }
+            }
+          })
+        }
+
+        // ✅ ขั้นตอนที่ 2: ตรวจสอบสต็อกของรายการใหม่
+        for (const item of items) {
+          if (!item.batchId) {
+            throw new Error('Batch ID is required for each item')
+          }
+
+          const batch = await tx.rawMaterialBatch.findUnique({
+            where: { id: item.batchId },
+            include: { rawMaterial: true }
+          })
+
+          if (!batch) {
+            throw new Error(`Batch not found: ${item.batchId}`)
+          }
+
+          if (batch.currentStock < parseFloat(item.quantity)) {
+            throw new Error(
+              `Insufficient stock for ${batch.rawMaterial.materialName} (Batch: ${batch.batchNumber}). Available: ${batch.currentStock}, Required: ${item.quantity}`
+            )
+          }
+        }
+
+        // ✅ ขั้นตอนที่ 3: ลบรายการเดิมทั้งหมด
         await tx.materialDeliveryItem.deleteMany({
           where: { deliveryId: id }
         })
 
-        // สร้างรายการใหม่
+        // ✅ ขั้นตอนที่ 4: สร้างรายการใหม่
         updateData.items = {
           create: items.map((item: any) => ({
             rawMaterialId: item.rawMaterialId,
+            batchId: item.batchId,
             batchNumber: item.batchNumber,
             quantity: parseFloat(item.quantity),
             unit: item.unit
           }))
+        }
+
+        // ✅ ขั้นตอนที่ 5: ตัดสต็อกของรายการใหม่
+        for (const item of items) {
+          const quantity = parseFloat(item.quantity)
+
+          // ตัดสต็อกจาก Batch
+          const updatedBatch = await tx.rawMaterialBatch.update({
+            where: { id: item.batchId },
+            data: {
+              currentStock: {
+                decrement: quantity
+              }
+            }
+          })
+
+          // อัปเดตสถานะ Batch ถ้าสต็อกหมด
+          if (updatedBatch.currentStock <= 0) {
+            await tx.rawMaterialBatch.update({
+              where: { id: item.batchId },
+              data: {
+                status: 'OUT_OF_STOCK'
+              }
+            })
+          }
+
+          // ตัดสต็อกจาก RawMaterial
+          await tx.rawMaterial.update({
+            where: { id: item.rawMaterialId },
+            data: {
+              currentStock: {
+                decrement: quantity
+              }
+            }
+          })
         }
       }
 
@@ -273,17 +321,44 @@ export async function DELETE(
       )
     }
 
-    // ถ้าสถานะเป็น SHIPPING ห้ามลบ
-    if (existingDelivery.status === 'SHIPPING' || existingDelivery.status === 'DELIVERED') {
+    // ถ้าสถานะเป็น DELIVERED (รับเข้าแล้ว) ห้ามลบ
+    if (existingDelivery.status === 'DELIVERED') {
       return NextResponse.json(
-        { error: 'Cannot delete delivery that is being shipped or delivered' },
+        { error: 'Cannot delete delivery that has been received by dealer' },
         { status: 400 }
       )
     }
 
-    // ลบการส่งมอบ (รายการจะถูกลบอัตโนมัติเพราะมี onDelete: Cascade)
-    await prisma.materialDelivery.delete({
-      where: { id }
+    // ใช้ Transaction เพื่อลบและคืนสต็อก
+    await prisma.$transaction(async (tx) => {
+      // คืนสต็อกให้ HeadOffice
+      for (const item of existingDelivery.items) {
+        // คืนสต็อกให้ Batch
+        await tx.rawMaterialBatch.update({
+          where: { id: item.batchId! },
+          data: {
+            currentStock: {
+              increment: item.quantity
+            },
+            status: 'AVAILABLE' // เปลี่ยนสถานะกลับเป็น AVAILABLE
+          }
+        })
+
+        // คืนสต็อกให้ RawMaterial
+        await tx.rawMaterial.update({
+          where: { id: item.rawMaterialId },
+          data: {
+            currentStock: {
+              increment: item.quantity
+            }
+          }
+        })
+      }
+
+      // ลบการส่งมอบ (รายการจะถูกลบอัตโนมัติเพราะมี onDelete: Cascade)
+      await tx.materialDelivery.delete({
+        where: { id }
+      })
     })
 
     return NextResponse.json({

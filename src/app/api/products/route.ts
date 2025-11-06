@@ -102,7 +102,8 @@ export async function POST(request: NextRequest) {
       category,
       description,
       warrantyTerms,
-      thickness
+      thickness,
+      templateImage
     } = body
 
     // ตรวจสอบว่า productCode ซ้ำหรือไม่
@@ -140,7 +141,8 @@ export async function POST(request: NextRequest) {
         category,
         description: description || null,
         warrantyTerms: warrantyTerms || null,
-        thickness: thickness ? parseFloat(thickness) : null
+        thickness: thickness ? parseFloat(thickness) : null,
+        templateImage: templateImage || 'Certification-Form.jpg'
       },
       include: {
         warranties: {

@@ -6,8 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -40,7 +40,7 @@ model Dealer {
   region             String? // ตัวแทนจำหน่ายภาค
   address            String
   phoneNumber        String
-  startDate          DateTime
+  startDate          DateTime? // เปลี่ยนเป็น optional
   endDate            DateTime?
   users              User[]
   warranties         Warranty[]
@@ -103,6 +103,7 @@ model Product {
   description   String?
   warrantyTerms String? // เงื่อนไขการรับประกันมาตรฐาน
   thickness     Float? // ความหนา (mm.) สำหรับคำนวณตัดสต็อกวัตถุดิบ
+  templateImage String? @default("Certification-Form.jpg") // เทมเพลทใบรับประกัน
   warranties    Warranty[]
   recipe        ProductRecipe? // เพิ่มสูตรการผลิต
   createdAt     DateTime       @default(now())
@@ -139,8 +140,26 @@ model Warranty {
   dealer      Dealer     @relation(fields: [dealerId], references: [id])
   subDealerId String? // ผู้ขายรายย่อย (optional)
   subDealer   SubDealer? @relation(fields: [subDealerId], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+
+  // ระบบควบคุมการแก้ไข
+  isEdited  Boolean  @default(false) // แก้ไขแล้วหรือยัง
+  editedAt  DateTime? // วันที่แก้ไข
+  editedBy  String? // ผู้แก้ไข (username หรือ user id)
+
+  // ระบบอนุมัติการแก้ไข (Approval System)
+  editStatus       String?   @default("active") // "active", "pending_edit_approval", "edit_approved"
+  editRequestedAt  DateTime? // วันที่ส่งคำขอแก้ไข
+  editApproved     Boolean?  // สถานะการอนุมัติการแก้ไข (true = อนุมัติ, false = ปฏิเสธ, null = รอการอนุมัติ)
+  editApprovedAt   DateTime? // วันที่อนุมัติ
+  editApprovedBy   String?   // ผู้อนุมัติ (username)
+  approvalNote     String?   // หมายเหตุการอนุมัติ
+  editReason       String?   // เหตุผลในการแก้ไข
+
+  // History การแก้ไข
+  history WarrantyHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("warranties")
 }
@@ -161,6 +180,7 @@ model RawMaterialReceiving {
   batchNumber      String // Batch No.
   receivedQuantity Float // ปริมาณที่รับเข้า (kg)
   storageLocation  String // สถานที่จัดเก็บในคลังสำนักงานใหญ่
+  expiryDate       DateTime? // วันหมดอายุ (optional)
 
   // ข้อมูลเพิ่มเติม
   qualityStatus String  @default("PENDING") // สถานะการตรวจสอบคุณภาพ (PENDING, APPROVED, REJECTED)
@@ -203,8 +223,17 @@ model RawMaterialBatch {
   // สถานะ
   status String @default("AVAILABLE") // AVAILABLE, OUT_OF_STOCK, EXPIRED
 
+  // ระบบต่ออายุวัตถุดิบ (Material Re-certification)
+  isRecertified        Boolean   @default(false) // ต่ออายุแล้วหรือไม่
+  recertificationCount Int       @default(0) // จำนวนครั้งที่ต่ออายุ
+  lastRecertifiedAt    DateTime? // วันที่ต่ออายุล่าสุด
+  lastRecertifiedBy    String? // ผู้ต่ออายุล่าสุด
+
   // รายการส่งมอบที่ใช้ Batch นี้
   deliveryItems MaterialDeliveryItem[]
+
+  // ประวัติการต่ออายุ
+  recertificationHistory RecertificationHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -221,7 +250,7 @@ model MaterialDelivery {
   deliveryDate   DateTime // วันที่ส่งมอบ
   dealerId       String // ตัวแทนจำหน่ายที่รับวัตถุดิบ
   dealer         Dealer   @relation(fields: [dealerId], references: [id])
-  status         String   @default("PREPARING") // สถานะการส่งมอบ (PREPARING, SHIPPING, DELIVERED)
+  status         String   @default("PENDING_RECEIPT") // สถานะการส่งมอบ (PENDING_RECEIPT = รอดีลเลอร์รับเข้า, DELIVERED = ส่งแล้ว)
   totalItems     Int      @default(0) // จำนวนรายการวัตถุดิบทั้งหมด
   notes          String? // หมายเหตุ
 
@@ -309,7 +338,20 @@ model DealerStock {
   batchNumber  String // Batch Number
   currentStock Float    @default(0) // สต็อกปัจจุบัน
   unit         String // หน่วย
+  expiryDate   DateTime? // วันหมดอายุของ batch นี้
   lastUpdated  DateTime @default(now()) // วันที่อัปเดตล่าสุด
+
+  // สถานะ
+  status String @default("AVAILABLE") // AVAILABLE, OUT_OF_STOCK, EXPIRED
+
+  // ระบบต่ออายุวัตถุดิบของดีลเลอร์ (Material Re-certification)
+  isRecertified        Boolean   @default(false) // ต่ออายุแล้วหรือไม่
+  recertificationCount Int       @default(0) // จำนวนครั้งที่ต่ออายุ
+  lastRecertifiedAt    DateTime? // วันที่ต่ออายุล่าสุด
+  lastRecertifiedBy    String? // ผู้ต่ออายุล่าสุด
+
+  // ประวัติการต่ออายุของดีลเลอร์
+  recertificationHistory DealerRecertificationHistory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -335,6 +377,28 @@ model DealerNotification {
   updatedAt DateTime @updatedAt
 
   @@map("dealer_notifications")
+}
+
+// การแจ้งเตือนสำหรับสำนักงานใหญ่ (HeadOffice)
+model HeadOfficeNotification {
+  id               String    @id @default(cuid())
+  type             String // ประเภทการแจ้งเตือน (EDIT_REQUEST, SYSTEM_MESSAGE)
+  notificationType String? // ประเภทย่อย เช่น "EDIT_REQUEST"
+  title            String // หัวข้อการแจ้งเตือน
+  message          String // ข้อความ
+  data             String? // ข้อมูลเพิ่มเติม (JSON format - เช่น warrantyId, dealerId)
+  warrantyId       String? // ID ของใบรับประกันที่เกี่ยวข้อง
+  status           String    @default("PENDING") // สถานะ (PENDING, APPROVED, REJECTED)
+  isRead           Boolean   @default(false) // อ่านแล้วหรือยัง
+  readAt           DateTime? // วันที่อ่าน
+  resolvedAt       DateTime? // วันที่แก้ไข/อนุมัติ
+  resolvedBy       String? // ผู้แก้ไข/อนุมัติ
+  resolvedNote     String? // หมายเหตุการแก้ไข
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("headoffice_notifications")
 }
 
 // สูตรการผลิตสินค้า
@@ -371,4 +435,76 @@ model ProductRecipeItem {
   updatedAt DateTime @updatedAt
 
   @@map("product_recipe_items")
+}
+
+// ประวัติการแก้ไขใบรับประกัน (Audit Trail)
+model WarrantyHistory {
+  id         String   @id @default(cuid())
+  warrantyId String
+  warranty   Warranty @relation(fields: [warrantyId], references: [id], onDelete: Cascade)
+
+  // ผู้ทำรายการ
+  editedBy       String // username หรือ userId
+  editedByName   String // ชื่อผู้แก้ไข
+  editedByGroup  String // HeadOffice หรือ Dealer
+
+  // ข้อมูลที่เปลี่ยนแปลง (JSON format)
+  changesSummary String // สรุปการเปลี่ยนแปลง เช่น "แก้ไขชื่อลูกค้า, เบอร์โทร"
+  oldData        String // ข้อมูลเก่า (JSON)
+  newData        String // ข้อมูลใหม่ (JSON)
+
+  // เหตุผลในการแก้ไข (optional)
+  reason String? // เหตุผลในการแก้ไข
+
+  createdAt DateTime @default(now())
+
+  @@map("warranty_history")
+}
+
+// ประวัติการต่ออายุวัตถุดิบ (Material Re-certification History)
+model RecertificationHistory {
+  id String @id @default(cuid())
+
+  // เชื่อมต่อกับ Batch
+  batchId String
+  batch   RawMaterialBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  // ข้อมูลการต่ออายุ
+  oldExpiryDate DateTime // วันหมดอายุเดิม
+  newExpiryDate DateTime // วันหมดอายุใหม่
+  extendedDays  Int      @default(60) // จำนวนวันที่ต่อ (default 60)
+
+  // ผู้ทำรายการ
+  recertifiedBy     String // Admin ผู้ต่ออายุ (username)
+  recertifiedByName String // ชื่อ Admin
+  reason            String? // เหตุผล (optional)
+  note              String? // หมายเหตุเพิ่มเติม (optional)
+
+  createdAt DateTime @default(now())
+
+  @@map("recertification_history")
+}
+
+// ประวัติการต่ออายุวัตถุดิบของดีลเลอร์ (Dealer Material Re-certification History)
+model DealerRecertificationHistory {
+  id String @id @default(cuid())
+
+  // เชื่อมต่อกับ DealerStock
+  dealerStockId String
+  dealerStock   DealerStock @relation(fields: [dealerStockId], references: [id], onDelete: Cascade)
+
+  // ข้อมูลการต่ออายุ
+  oldExpiryDate DateTime // วันหมดอายุเดิม
+  newExpiryDate DateTime // วันหมดอายุใหม่
+  extendedDays  Int      @default(60) // จำนวนวันที่ต่อ (default 60)
+
+  // ผู้ทำรายการ
+  recertifiedBy     String // Admin ผู้ต่ออายุ (username)
+  recertifiedByName String // ชื่อ Admin
+  reason            String? // เหตุผล (optional)
+  note              String? // หมายเหตุเพิ่มเติม (optional)
+
+  createdAt DateTime @default(now())
+
+  @@map("dealer_recertification_history")
 }

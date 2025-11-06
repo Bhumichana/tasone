@@ -3,6 +3,29 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
+// ฟังก์ชันแปลงวันที่จากหลายรูปแบบ
+function parseDate(dateStr: string): Date {
+  // รูปแบบ YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return new Date(dateStr)
+  }
+
+  // รูปแบบ DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+    const [day, month, year] = dateStr.split('/')
+    return new Date(`${year}-${month}-${day}`)
+  }
+
+  // รูปแบบ DD-MM-YYYY
+  if (/^\d{2}-\d{2}-\d{4}$/.test(dateStr)) {
+    const [day, month, year] = dateStr.split('-')
+    return new Date(`${year}-${month}-${day}`)
+  }
+
+  // ถ้าไม่ตรงรูปแบบไหนเลย ให้ลอง parse ตรงๆ
+  return new Date(dateStr)
+}
+
 // GET /api/raw-material-receiving/[id] - ดูรายละเอียดการรับเข้า
 export async function GET(
   request: NextRequest,
@@ -79,6 +102,7 @@ export async function PUT(
       batchNumber,
       receivedQuantity,
       storageLocation,
+      expiryDate,
       notes,
       qualityStatus
     } = body
@@ -137,20 +161,35 @@ export async function PUT(
     }
 
     // อัปเดตการรับเข้าและสต็อก
-    const [updatedReceiving] = await prisma.$transaction([
-      prisma.rawMaterialReceiving.update({
+    const updatedReceiving = await prisma.$transaction(async (tx) => {
+      // สร้าง data object สำหรับ update
+      const updateData: any = {
+        receivingDate: receivingDate ? parseDate(receivingDate) : undefined,
+        purchaseOrderNo,
+        supplier,
+        batchNumber,
+        receivedQuantity: newQuantity,
+        storageLocation,
+        notes,
+        qualityStatus: newStatus
+      }
+
+      // จัดการ rawMaterialId (ใช้ connect เพราะเป็น relation)
+      if (rawMaterialId && rawMaterialId !== existingReceiving.rawMaterialId) {
+        updateData.rawMaterial = {
+          connect: { id: rawMaterialId }
+        }
+      }
+
+      // จัดการ expiryDate แยกเพื่อป้องกัน error
+      if (expiryDate !== undefined) {
+        updateData.expiryDate = expiryDate && expiryDate.trim() !== '' ? parseDate(expiryDate) : null
+      }
+
+      // 1. อัปเดต RawMaterialReceiving
+      const receiving = await tx.rawMaterialReceiving.update({
         where: { id },
-        data: {
-          receivingDate: receivingDate ? new Date(receivingDate) : undefined,
-          purchaseOrderNo,
-          supplier,
-          rawMaterialId,
-          batchNumber,
-          receivedQuantity: newQuantity,
-          storageLocation,
-          notes,
-          qualityStatus: newStatus
-        },
+        data: updateData,
         include: {
           rawMaterial: {
             select: {
@@ -163,11 +202,23 @@ export async function PUT(
             }
           }
         }
-      }),
+      })
 
-      // อัปเดตสต็อกถ้ามีการเปลี่ยนแปลง
-      ...(stockChange !== 0 ? [
-        prisma.rawMaterial.update({
+      // 2. อัปเดต Batch ที่เกี่ยวข้อง (ถ้ามีการเปลี่ยนแปลง expiryDate)
+      if (expiryDate !== undefined) {
+        await tx.rawMaterialBatch.updateMany({
+          where: {
+            receivingId: id
+          },
+          data: {
+            expiryDate: expiryDate && expiryDate.trim() !== '' ? parseDate(expiryDate) : null
+          }
+        })
+      }
+
+      // 3. อัปเดตสต็อกถ้ามีการเปลี่ยนแปลง
+      if (stockChange !== 0) {
+        await tx.rawMaterial.update({
           where: { id: existingReceiving.rawMaterialId },
           data: {
             currentStock: {
@@ -175,8 +226,10 @@ export async function PUT(
             }
           }
         })
-      ] : [])
-    ])
+      }
+
+      return receiving
+    })
 
     return NextResponse.json({
       message: 'Receiving updated successfully',

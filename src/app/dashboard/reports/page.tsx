@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { DatePicker } from '@/components/ui/date-picker'
+import ThaiDatePicker from '@/components/ui/ThaiDatePicker'
+import { format } from 'date-fns'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import {
   BarChart,
@@ -298,18 +299,32 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div>
                 <Label htmlFor="startDate">วันที่เริ่มต้น</Label>
-                <DatePicker
-                  value={startDate}
-                  onChange={(date) => setStartDate(date)}
-                  placeholder="เลือกวันที่เริ่มต้น"
+                <ThaiDatePicker
+                  selected={startDate ? new Date(startDate) : null}
+                  onChange={(date) => {
+                    if (date) {
+                      setStartDate(format(date, 'yyyy-MM-dd'))
+                    } else {
+                      setStartDate('')
+                    }
+                  }}
+                  placeholderText="เลือกวันที่เริ่มต้น"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
               <div>
                 <Label htmlFor="endDate">วันที่สิ้นสุด</Label>
-                <DatePicker
-                  value={endDate}
-                  onChange={(date) => setEndDate(date)}
-                  placeholder="เลือกวันที่สิ้นสุด"
+                <ThaiDatePicker
+                  selected={endDate ? new Date(endDate) : null}
+                  onChange={(date) => {
+                    if (date) {
+                      setEndDate(format(date, 'yyyy-MM-dd'))
+                    } else {
+                      setEndDate('')
+                    }
+                  }}
+                  placeholderText="เลือกวันที่สิ้นสุด"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
               <div>

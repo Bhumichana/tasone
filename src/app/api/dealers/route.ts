@@ -72,6 +72,37 @@ export async function POST(request: NextRequest) {
       endDate
     } = body
 
+    // Validate required fields (วันที่ไม่บังคับ)
+    if (!dealerCode || !manufacturerNumber || !dealerName || !address || !phoneNumber) {
+      return NextResponse.json(
+        { error: 'ข้อมูลไม่ครบถ้วน กรุณากรอกข้อมูลที่จำเป็นให้ครบ' },
+        { status: 400 }
+      )
+    }
+
+    // Validate date format (ถ้ามีการกรอก)
+    let parsedStartDate = null
+    if (startDate && startDate.trim() !== '') {
+      parsedStartDate = new Date(startDate)
+      if (isNaN(parsedStartDate.getTime())) {
+        return NextResponse.json(
+          { error: 'รูปแบบวันที่เริ่มต้นไม่ถูกต้อง' },
+          { status: 400 }
+        )
+      }
+    }
+
+    let parsedEndDate = null
+    if (endDate && endDate.trim() !== '') {
+      parsedEndDate = new Date(endDate)
+      if (isNaN(parsedEndDate.getTime())) {
+        return NextResponse.json(
+          { error: 'รูปแบบวันที่สิ้นสุดไม่ถูกต้อง' },
+          { status: 400 }
+        )
+      }
+    }
+
     // ตรวจสอบว่า dealerCode ซ้ำหรือไม่
     const existingDealer = await prisma.dealer.findUnique({
       where: { dealerCode }
@@ -94,8 +125,8 @@ export async function POST(request: NextRequest) {
         region,
         address,
         phoneNumber,
-        startDate: new Date(startDate),
-        endDate: endDate ? new Date(endDate) : null
+        startDate: parsedStartDate,
+        endDate: parsedEndDate
       },
       include: {
         users: {

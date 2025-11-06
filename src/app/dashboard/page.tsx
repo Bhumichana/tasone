@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import {
   Users,
   Building2,
@@ -52,6 +52,7 @@ interface DashboardStats {
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const hasFetchedRef = useRef(false) // Track if we've fetched data
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalDealers: 0,
@@ -74,24 +75,41 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (status === 'loading') return // Still loading
-    if (!session) router.push('/login')
-    else {
+
+    if (!session) {
+      router.push('/login')
+      return
+    }
+
+    // Only fetch once when session becomes available
+    if (session.user && !hasFetchedRef.current) {
+      hasFetchedRef.current = true
+
+      // Fetch data only when session is ready
       fetchDashboardStats()
+
       // Fetch warranty by dealer chart data for HeadOffice
       if (session.user.userGroup === 'HeadOffice') {
         fetchWarrantyByDealer()
       }
     }
-  }, [session, status, router])
+  }, [status, session, router]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDashboardStats = async () => {
     try {
       setLoading(true)
 
+      // Check if session is available
+      if (!session || !session.user) {
+        console.error('No session available')
+        setLoading(false)
+        return
+      }
+
       // ดึงข้อมูลสถิติพร้อมกัน
       const promises = []
 
-      if (session?.user.userGroup === 'HeadOffice') {
+      if (session.user.userGroup === 'HeadOffice') {
         promises.push(
           fetch('/api/users').then(res => res.json()),
           fetch('/api/dealers').then(res => res.json())
@@ -105,7 +123,7 @@ export default function DashboardPage() {
       )
 
       // For dealers, also fetch pending deliveries
-      if (session?.user.userGroup === 'Dealer') {
+      if (session.user.userGroup === 'Dealer') {
         promises.push(
           fetch('/api/dealer-receipts').then(res => res.json())
         )
@@ -117,7 +135,7 @@ export default function DashboardPage() {
       let dealers = { dealers: [] }
       let rawMaterials, products, warranties, incomingMaterials = { pendingDeliveries: [] }
 
-      if (session?.user.userGroup === 'HeadOffice') {
+      if (session.user.userGroup === 'HeadOffice') {
         [users, dealers, rawMaterials, products, warranties] = results
       } else {
         [rawMaterials, products, warranties, incomingMaterials] = results

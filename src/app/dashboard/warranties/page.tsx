@@ -21,8 +21,10 @@ import {
   CheckCircle
 } from 'lucide-react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { DatePicker } from '@/components/ui/date-picker'
+import ThaiDatePicker from '@/components/ui/ThaiDatePicker'
+import { format } from 'date-fns'
 import MaterialUsageTable from '@/components/warranties/MaterialUsageTable'
+import ApprovalModal from '@/components/warranties/ApprovalModal'
 import {
   calculateMaterialUsage,
   calculateMaterialUsageFromDealerStock,
@@ -64,7 +66,24 @@ interface Warranty {
     id: string
     dealerCode: string
     dealerName: string
+    manufacturerNumber?: string
   }
+  subDealerId?: string | null
+  subDealer?: {
+    id: string
+    name: string
+    phoneNumber?: string
+  } | null
+  // ระบบควบคุมการแก้ไข
+  isEdited?: boolean
+  editedAt?: string | null
+  editedBy?: string | null
+  // ระบบอนุมัติการแก้ไข
+  editApproved?: boolean
+  editReason?: string | null
+  editApprovedAt?: string | null
+  editApprovedBy?: string | null
+  approvalNote?: string | null
   createdAt: string
 }
 
@@ -108,6 +127,7 @@ export default function WarrantiesPage() {
   const [dateTo, setDateTo] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [selectedWarranty, setSelectedWarranty] = useState<Warranty | null>(null)
   const [editingWarranty, setEditingWarranty] = useState<Warranty | null>(null)
   const [formData, setFormData] = useState({
@@ -396,6 +416,7 @@ export default function WarrantiesPage() {
       // ฟิลด์ใหม่
       warrantyNumber: warranty.warrantyNumber || '',
       dealerName: warranty.dealerName || '',
+      subDealerId: warranty.subDealerId || '',  // เพิ่ม: โหลด subDealerId
       manufacturerNumber: warranty.dealer.manufacturerNumber || '',
       productionDate: warranty.productionDate ? formatDateForInput(warranty.productionDate) : '',
       deliveryDate: warranty.deliveryDate ? formatDateForInput(warranty.deliveryDate) : '',
@@ -426,6 +447,58 @@ export default function WarrantiesPage() {
     } catch (error) {
       console.error('Error deleting warranty:', error)
       alert('เกิดข้อผิดพลาดในการลบ')
+    }
+  }
+
+  const handleApproveEdit = async (warrantyId: string, approvalNote: string) => {
+    try {
+      const response = await fetch(`/api/warranties/${warrantyId}/approve-edit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          approved: true,
+          approvalNote: approvalNote || undefined,
+        }),
+      })
+
+      if (response.ok) {
+        alert('อนุมัติการแก้ไขสำเร็จ')
+        fetchWarranties()
+      } else {
+        const error = await response.json()
+        throw new Error(error.error || 'ไม่สามารถอนุมัติได้')
+      }
+    } catch (error: any) {
+      console.error('Error approving edit:', error)
+      throw error
+    }
+  }
+
+  const handleRejectEdit = async (warrantyId: string, approvalNote: string) => {
+    try {
+      const response = await fetch(`/api/warranties/${warrantyId}/approve-edit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          approved: false,
+          approvalNote: approvalNote || undefined,
+        }),
+      })
+
+      if (response.ok) {
+        alert('ปฏิเสธการแก้ไขสำเร็จ')
+        fetchWarranties()
+      } else {
+        const error = await response.json()
+        throw new Error(error.error || 'ไม่สามารถปฏิเสธได้')
+      }
+    } catch (error: any) {
+      console.error('Error rejecting edit:', error)
+      throw error
     }
   }
 
@@ -486,10 +559,49 @@ export default function WarrantiesPage() {
     const today = new Date()
     const expiry = new Date(expiryDate)
     const daysLeft = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    
+
     if (daysLeft < 0) return { status: 'expired', text: 'หมดอายุ', color: 'red' }
     if (daysLeft <= 30) return { status: 'expiring', text: 'ใกล้หมดอายุ', color: 'yellow' }
     return { status: 'active', text: 'ใช้งานได้', color: 'green' }
+  }
+
+  // ฟังก์ชันคำนวณจำนวนวันที่เหลือในการแก้ไข (5 วัน)
+  const getDaysLeftToEdit = (warrantyDate: string) => {
+    const warrantyDateObj = new Date(warrantyDate)
+    const today = new Date()
+    const daysPassed = Math.floor((today.getTime() - warrantyDateObj.getTime()) / (1000 * 60 * 60 * 24))
+    const daysLeft = 5 - daysPassed
+    return { daysPassed, daysLeft }
+  }
+
+  // ตรวจสอบว่าสามารถแก้ไขใบรับประกันได้หรือไม่
+  const canEditWarranty = (warranty: Warranty) => {
+    const { daysLeft } = getDaysLeftToEdit(warranty.warrantyDate)
+
+    // เงื่อนไข 1: เกิน 5 วันแล้ว
+    if (daysLeft < 0) {
+      return {
+        canEdit: false,
+        reason: 'เกินระยะเวลา 5 วัน',
+        tooltip: 'ไม่สามารถแก้ไขได้ เกินระยะเวลา 5 วันแล้ว'
+      }
+    }
+
+    // เงื่อนไข 2: แก้ไขไปแล้ว 1 ครั้ง
+    if (warranty.isEdited) {
+      return {
+        canEdit: false,
+        reason: 'แก้ไขไปแล้ว',
+        tooltip: 'ไม่สามารถแก้ไขได้ เนื่องจากแก้ไขไปแล้ว 1 ครั้ง'
+      }
+    }
+
+    // แก้ไขได้
+    return {
+      canEdit: true,
+      reason: '',
+      tooltip: `แก้ไขได้อีก ${daysLeft} วัน`
+    }
   }
 
   const filteredWarranties = warranties.filter(warranty =>
@@ -660,18 +772,32 @@ export default function WarrantiesPage() {
             )}
 
             <div>
-              <DatePicker
-                value={dateFrom}
-                onChange={(date) => setDateFrom(date)}
-                placeholder="จากวันที่"
+              <ThaiDatePicker
+                selected={dateFrom ? new Date(dateFrom) : null}
+                onChange={(date) => {
+                  if (date) {
+                    setDateFrom(format(date, 'yyyy-MM-dd'))
+                  } else {
+                    setDateFrom('')
+                  }
+                }}
+                placeholderText="จากวันที่"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
 
             <div>
-              <DatePicker
-                value={dateTo}
-                onChange={(date) => setDateTo(date)}
-                placeholder="ถึงวันที่"
+              <ThaiDatePicker
+                selected={dateTo ? new Date(dateTo) : null}
+                onChange={(date) => {
+                  if (date) {
+                    setDateTo(format(date, 'yyyy-MM-dd'))
+                  } else {
+                    setDateTo('')
+                  }
+                }}
+                placeholderText="ถึงวันที่"
+                className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
           </div>
@@ -759,17 +885,29 @@ export default function WarrantiesPage() {
                           {new Date(warranty.warrantyDate).toLocaleDateString('th-TH')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            status.color === 'green' 
-                              ? 'bg-green-100 text-green-800' 
-                              : status.color === 'yellow'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {status.text}
-                          </span>
-                          <div className="text-xs text-gray-500 mt-1">
-                            หมดอายุ: {new Date(warranty.expiryDate).toLocaleDateString('th-TH')}
+                          <div className="flex flex-col gap-1">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              status.color === 'green'
+                                ? 'bg-green-100 text-green-800'
+                                : status.color === 'yellow'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {status.text}
+                            </span>
+                            {warranty.isEdited && !warranty.editApproved && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">
+                                รออนุมัติการแก้ไข
+                              </span>
+                            )}
+                            {warranty.isEdited && warranty.editApproved && (
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                แก้ไขแล้ว ✓
+                              </span>
+                            )}
+                            <div className="text-xs text-gray-500 mt-1">
+                              หมดอายุ: {new Date(warranty.expiryDate).toLocaleDateString('th-TH')}
+                            </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
@@ -778,22 +916,76 @@ export default function WarrantiesPage() {
                               setSelectedWarranty(warranty)
                               setShowDetailModal(true)
                             }}
-                            className="text-blue-600 hover:text-blue-900"
+                            disabled={warranty.isEdited && !warranty.editApproved}
+                            className={
+                              warranty.isEdited && !warranty.editApproved
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-blue-600 hover:text-blue-900"
+                            }
+                            title={warranty.isEdited && !warranty.editApproved ? "ปุ่ม View ถูกปิดใช้งานในขณะรออนุมัติการแก้ไข" : "ดูรายละเอียด"}
                           >
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handlePrintWarranty(warranty.id)}
-                            className="text-green-600 hover:text-green-900"
+                            disabled={warranty.isEdited && !warranty.editApproved}
+                            className={
+                              warranty.isEdited && !warranty.editApproved
+                                ? "text-gray-400 cursor-not-allowed"
+                                : "text-green-600 hover:text-green-900"
+                            }
+                            title={warranty.isEdited && !warranty.editApproved ? "ปุ่ม Download ถูกปิดใช้งานในขณะรออนุมัติการแก้ไข" : "ดาวน์โหลด PDF"}
                           >
                             <Download className="h-4 w-4" />
                           </button>
-                          <button
-                            onClick={() => handleEdit(warranty)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
+                          {/* Edit Button with Time-based Control */}
+                          {(() => {
+                            const editControl = canEditWarranty(warranty)
+                            const { daysLeft } = getDaysLeftToEdit(warranty.warrantyDate)
+
+                            // Color coding based on days left
+                            const getButtonColor = () => {
+                              if (!editControl.canEdit) return 'text-gray-400 cursor-not-allowed'
+                              if (daysLeft >= 3) return 'text-green-600 hover:text-green-900'
+                              if (daysLeft >= 1) return 'text-yellow-600 hover:text-yellow-900'
+                              return 'text-indigo-600 hover:text-indigo-900'
+                            }
+
+                            const getBadgeColor = () => {
+                              if (!editControl.canEdit) return 'bg-red-100 text-red-800'
+                              if (daysLeft >= 3) return 'bg-green-100 text-green-800'
+                              if (daysLeft >= 1) return 'bg-yellow-100 text-yellow-800'
+                              return 'bg-indigo-100 text-indigo-800'
+                            }
+
+                            return (
+                              <div className="inline-flex flex-col items-center" title={editControl.tooltip}>
+                                <button
+                                  onClick={() => editControl.canEdit && handleEdit(warranty)}
+                                  disabled={!editControl.canEdit}
+                                  className={`${getButtonColor()} transition-colors`}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium mt-1 whitespace-nowrap ${getBadgeColor()}`}>
+                                  {editControl.canEdit ? `${daysLeft}วัน` : editControl.reason}
+                                </span>
+                              </div>
+                            )
+                          })()}
+                          {/* Approve Edit Button (HeadOffice only) */}
+                          {session?.user.userGroup === 'HeadOffice' && warranty.isEdited && !warranty.editApproved && (
+                            <button
+                              onClick={() => {
+                                setSelectedWarranty(warranty)
+                                setShowApprovalModal(true)
+                              }}
+                              className="text-orange-600 hover:text-orange-900"
+                              title="อนุมัติการแก้ไข"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDelete(warranty.id)}
                             className="text-red-600 hover:text-red-900"
@@ -909,10 +1101,17 @@ export default function WarrantiesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่ออกใบรับประกัน</label>
-                  <DatePicker
-                    value={formData.warrantyDate}
-                    onChange={(date) => setFormData({ ...formData, warrantyDate: date })}
-                    placeholder="เลือกวันที่ออกใบรับประกัน"
+                  <ThaiDatePicker
+                    selected={formData.warrantyDate ? new Date(formData.warrantyDate) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        setFormData({ ...formData, warrantyDate: format(date, 'yyyy-MM-dd') })
+                      } else {
+                        setFormData({ ...formData, warrantyDate: '' })
+                      }
+                    }}
+                    placeholderText="เลือกวันที่ออกใบรับประกัน"
+                    className="mt-1 flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
 
@@ -979,19 +1178,33 @@ export default function WarrantiesPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่ผลิต</label>
-                  <DatePicker
-                    value={formData.productionDate}
-                    onChange={(date) => setFormData({ ...formData, productionDate: date })}
-                    placeholder="เลือกวันที่ผลิต"
+                  <ThaiDatePicker
+                    selected={formData.productionDate ? new Date(formData.productionDate) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        setFormData({ ...formData, productionDate: format(date, 'yyyy-MM-dd') })
+                      } else {
+                        setFormData({ ...formData, productionDate: '' })
+                      }
+                    }}
+                    placeholderText="เลือกวันที่ผลิต"
+                    className="mt-1 flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">วันที่ส่งมอบ</label>
-                  <DatePicker
-                    value={formData.deliveryDate}
-                    onChange={(date) => setFormData({ ...formData, deliveryDate: date })}
-                    placeholder="เลือกวันที่ส่งมอบ"
+                  <ThaiDatePicker
+                    selected={formData.deliveryDate ? new Date(formData.deliveryDate) : null}
+                    onChange={(date) => {
+                      if (date) {
+                        setFormData({ ...formData, deliveryDate: format(date, 'yyyy-MM-dd') })
+                      } else {
+                        setFormData({ ...formData, deliveryDate: '' })
+                      }
+                    }}
+                    placeholderText="เลือกวันที่ส่งมอบ"
+                    className="mt-1 flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 </div>
 
@@ -1247,11 +1460,14 @@ export default function WarrantiesPage() {
                           <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                             ประเภท
                           </th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                            Batch Number
+                          </th>
                           <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                             ต่อ 1 ตร.ม.
                           </th>
                           <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                            ปริมาณรวม
+                            ปริมาณที่ใช้
                           </th>
                           <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                             สต็อกขณะทำรายการ
@@ -1262,40 +1478,97 @@ export default function WarrantiesPage() {
                         {(() => {
                           try {
                             const materials = JSON.parse(selectedWarranty.materialUsage)
-                            return materials.map((material: any, index: number) => (
-                              <tr key={index} className="hover:bg-gray-50">
-                                <td className="px-3 py-2">
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-900">
-                                      {material.materialName}
-                                    </p>
-                                    <p className="text-xs text-gray-500">{material.materialCode}</p>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-2">
-                                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                    {material.materialType}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-right text-sm text-gray-900">
-                                  {material.quantityPerUnit.toFixed(3)} {material.unit}
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <span className="text-sm font-semibold text-gray-900">
-                                    {material.totalQuantity.toFixed(2)} {material.unit}
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-right">
-                                  <span className="text-sm font-medium text-gray-600">
-                                    {material.currentStock.toFixed(2)} {material.unit}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))
+                            return materials.map((material: any, index: number) => {
+                              // รองรับทั้งรูปแบบเก่า (currentStock) และใหม่ (totalAvailableStock)
+                              const stockValue = material.totalAvailableStock ?? material.currentStock ?? 0
+
+                              // ถ้ามี batches (Multi-Batch FIFO) แสดงแต่ละ batch แยก
+                              if (material.batches && material.batches.length > 0) {
+                                return material.batches.map((batch: any, batchIndex: number) => (
+                                  <tr key={`${index}-${batchIndex}`} className="hover:bg-gray-50">
+                                    {batchIndex === 0 && (
+                                      <>
+                                        <td className="px-3 py-2" rowSpan={material.batches.length}>
+                                          <div>
+                                            <p className="text-sm font-medium text-gray-900">
+                                              {material.materialName}
+                                            </p>
+                                            <p className="text-xs text-gray-500">{material.materialCode}</p>
+                                          </div>
+                                        </td>
+                                        <td className="px-3 py-2" rowSpan={material.batches.length}>
+                                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                            {material.materialType}
+                                          </span>
+                                        </td>
+                                      </>
+                                    )}
+                                    <td className="px-3 py-2">
+                                      <span className="inline-flex px-2 py-1 text-xs font-mono bg-gray-100 text-gray-700 rounded">
+                                        {batch.batchNumber}
+                                      </span>
+                                    </td>
+                                    {batchIndex === 0 && (
+                                      <td className="px-3 py-2 text-right text-sm text-gray-900" rowSpan={material.batches.length}>
+                                        {material.quantityPerUnit.toFixed(3)} {material.unit}
+                                      </td>
+                                    )}
+                                    <td className="px-3 py-2 text-right">
+                                      <span className="text-sm font-semibold text-gray-900">
+                                        {batch.quantityUsed.toFixed(3)} {material.unit}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <span className="text-sm font-medium text-gray-600">
+                                        {batch.batchStock?.toFixed(3) ?? '0.000'} {material.unit}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))
+                              } else {
+                                // รูปแบบเก่า (Single Batch)
+                                return (
+                                  <tr key={index} className="hover:bg-gray-50">
+                                    <td className="px-3 py-2">
+                                      <div>
+                                        <p className="text-sm font-medium text-gray-900">
+                                          {material.materialName}
+                                        </p>
+                                        <p className="text-xs text-gray-500">{material.materialCode}</p>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                        {material.materialType}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <span className="inline-flex px-2 py-1 text-xs font-mono bg-gray-100 text-gray-700 rounded">
+                                        {material.batchNumber || 'N/A'}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right text-sm text-gray-900">
+                                      {material.quantityPerUnit.toFixed(3)} {material.unit}
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <span className="text-sm font-semibold text-gray-900">
+                                        {material.totalQuantity.toFixed(3)} {material.unit}
+                                      </span>
+                                    </td>
+                                    <td className="px-3 py-2 text-right">
+                                      <span className="text-sm font-medium text-gray-600">
+                                        {stockValue.toFixed(3)} {material.unit}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                )
+                              }
+                            }).flat()
                           } catch (error) {
+                            console.error('Error parsing materialUsage:', error)
                             return (
                               <tr>
-                                <td colSpan={5} className="px-3 py-4 text-center text-sm text-red-600">
+                                <td colSpan={6} className="px-3 py-4 text-center text-sm text-red-600">
                                   ไม่สามารถแสดงข้อมูลวัตถุดิบได้
                                 </td>
                               </tr>
@@ -1320,9 +1593,23 @@ export default function WarrantiesPage() {
               {/* Dealer Info */}
               <div>
                 <h4 className="text-md font-medium text-gray-900 mb-3">ตัวแทนจำหน่าย</h4>
-                <div className="bg-gray-50 p-4 rounded-md">
-                  <p className="font-medium">{selectedWarranty.dealer.dealerName}</p>
-                  <p className="text-sm text-gray-600">รหัส: {selectedWarranty.dealer.dealerCode}</p>
+                <div className="bg-gray-50 p-4 rounded-md space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">ตัวแทนจำหน่ายหลัก</label>
+                    <p className="font-medium">{selectedWarranty.dealer.dealerName}</p>
+                    <p className="text-sm text-gray-600">รหัส: {selectedWarranty.dealer.dealerCode}</p>
+                  </div>
+
+                  {/* แสดงผู้ขายรายย่อย (ถ้ามี) */}
+                  {selectedWarranty.subDealer && (
+                    <div className="border-t pt-3">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">ผู้ขายรายย่อย</label>
+                      <p className="font-medium text-blue-700">{selectedWarranty.subDealer.name}</p>
+                      {selectedWarranty.subDealer.phoneNumber && (
+                        <p className="text-sm text-gray-600">เบอร์โทร: {selectedWarranty.subDealer.phoneNumber}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1345,6 +1632,15 @@ export default function WarrantiesPage() {
           </div>
         </div>
       )}
+
+      {/* Approval Modal */}
+      <ApprovalModal
+        warranty={selectedWarranty}
+        isOpen={showApprovalModal}
+        onClose={() => setShowApprovalModal(false)}
+        onApprove={handleApproveEdit}
+        onReject={handleRejectEdit}
+      />
     </DashboardLayout>
   )
 }

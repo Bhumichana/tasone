@@ -17,6 +17,7 @@ interface RawMaterialReceiving {
   batchNumber: string
   receivedQuantity: number
   storageLocation: string
+  expiryDate?: string
   qualityStatus: string
   notes?: string
   receivedBy: string
@@ -237,7 +238,7 @@ export default function ReceivingList({
                   </div>
 
                   {/* ข้อมูลรายละเอียด */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 text-sm">
                     <div>
                       <span className="text-gray-600">วันที่รับเข้า:</span>
                       <p className="font-medium">{formatDate(receiving.receivingDate)}</p>
@@ -245,6 +246,12 @@ export default function ReceivingList({
                     <div>
                       <span className="text-gray-600">Batch Number:</span>
                       <p className="font-medium">{receiving.batchNumber}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">วันหมดอายุ:</span>
+                      <p className="font-medium">
+                        {receiving.expiryDate ? formatDate(receiving.expiryDate) : '-'}
+                      </p>
                     </div>
                     <div>
                       <span className="text-gray-600">ปริมาณ:</span>

@@ -198,7 +198,7 @@ export default function RecipeDetailModal({
               </div>
               <div className="bg-purple-50 p-4 rounded-lg text-center">
                 <Calculator className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-                <p className="text-2xl font-bold text-purple-800">{calculateTotalQuantity().toFixed(2)}</p>
+                <p className="text-2xl font-bold text-purple-800">{calculateTotalQuantity().toFixed(3)}</p>
                 <p className="text-sm text-purple-600">ปริมาณรวม</p>
               </div>
               <div className="bg-yellow-50 p-4 rounded-lg text-center">
@@ -262,7 +262,7 @@ export default function RecipeDetailModal({
                           </td>
                           <td className="px-4 py-4 text-right">
                             <p className="text-sm font-semibold text-gray-900">
-                              {item.quantity.toFixed(2)}
+                              {item.quantity.toFixed(3)}
                             </p>
                           </td>
                           <td className="px-4 py-4">
@@ -274,7 +274,7 @@ export default function RecipeDetailModal({
                                 ? 'text-green-600'
                                 : 'text-red-600'
                             }`}>
-                              {item.rawMaterial.currentStock.toFixed(2)} {item.rawMaterial.unit}
+                              {item.rawMaterial.currentStock.toFixed(3)} {item.rawMaterial.unit}
                             </p>
                           </td>
                           <td className="px-4 py-4">

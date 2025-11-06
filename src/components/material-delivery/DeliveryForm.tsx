@@ -10,6 +10,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import DeliveryItemsList from './DeliveryItemsList'
+import ThaiDatePicker from '@/components/ui/ThaiDatePicker'
+import { format } from 'date-fns'
 import { Send, AlertTriangle, Building2, Calendar, FileText } from 'lucide-react'
 
 interface Dealer {
@@ -55,12 +57,6 @@ interface DeliveryFormProps {
   loading?: boolean
 }
 
-const STATUS_OPTIONS = [
-  { value: 'PREPARING', label: 'เตรียมส่ง', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'SHIPPING', label: 'กำลังส่ง', color: 'bg-blue-100 text-blue-800' },
-  { value: 'DELIVERED', label: 'ส่งแล้ว', color: 'bg-green-100 text-green-800' }
-]
-
 export default function DeliveryForm({
   onSubmit,
   onCancel,
@@ -71,7 +67,7 @@ export default function DeliveryForm({
   const [formData, setFormData] = useState<DeliveryFormData>({
     deliveryDate: new Date().toISOString().split('T')[0],
     dealerId: '',
-    status: 'PREPARING',
+    status: 'PENDING_RECEIPT', // รอดีลเลอร์รับเข้า
     notes: '',
     items: [],
     ...initialData
@@ -139,17 +135,42 @@ export default function DeliveryForm({
       if (!item.rawMaterialId) {
         newErrors[`item_${index}_material`] = `รายการที่ ${index + 1}: กรุณาเลือกวัตถุดิบ`
       }
-      if (!item.batchNumber.trim()) {
+      // ✅ ตรวจสอบ batchId
+      if (!item.batchId || item.batchId.trim() === '') {
+        newErrors[`item_${index}_batchId`] = `รายการที่ ${index + 1}: ไม่พบ Batch ID (กรุณาลบและเพิ่มรายการใหม่)`
+      }
+      // ตรวจสอบ batchNumber
+      if (!item.batchNumber || !item.batchNumber.trim()) {
         newErrors[`item_${index}_batch`] = `รายการที่ ${index + 1}: กรุณาระบุ Batch Number`
       }
       if (!item.quantity || item.quantity <= 0) {
         newErrors[`item_${index}_quantity`] = `รายการที่ ${index + 1}: กรุณาระบุปริมาณที่ถูกต้อง`
       }
 
-      // ตรวจสอบสต็อก
+      // ✅ ตรวจสอบสต็อก (สำหรับการแก้ไข ต้องบวกปริมาณเดิมกลับเข้าไป)
       const material = rawMaterials.find(m => m.id === item.rawMaterialId)
-      if (material && material.currentStock < item.quantity) {
-        newErrors[`item_${index}_stock`] = `รายการที่ ${index + 1}: สต็อกไม่เพียงพอ (คงเหลือ: ${material.currentStock} ${material.unit})`
+      if (material) {
+        // คำนวณสต็อกที่มีอยู่จริง
+        let availableStock = material.currentStock
+
+        // ถ้าเป็นการแก้ไข และมีรายการเดิม (initialData)
+        if (isEditing && initialData?.items) {
+          // หาปริมาณเดิมของ item นี้ (จาก batchNumber และ rawMaterialId)
+          const oldItem = initialData.items.find(
+            (old: any) => old.rawMaterialId === item.rawMaterialId &&
+                          old.batchNumber === item.batchNumber
+          )
+
+          // ถ้ามีรายการเดิม ให้บวกปริมาณเดิมกลับเข้าไป
+          if (oldItem) {
+            availableStock += Number(oldItem.quantity || 0)
+          }
+        }
+
+        // เช็คว่าสต็อกพอหรือไม่
+        if (availableStock < item.quantity) {
+          newErrors[`item_${index}_stock`] = `รายการที่ ${index + 1}: สต็อกไม่เพียงพอ (คงเหลือ: ${availableStock.toFixed(3)} ${material.unit})`
+        }
       }
     })
 
@@ -190,47 +211,27 @@ export default function DeliveryForm({
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* ข้อมูลพื้นฐาน */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
               {/* วันที่ส่งมอบ */}
               <div>
                 <Label htmlFor="deliveryDate" className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
                   วันที่ส่งมอบ *
                 </Label>
-                <Input
-                  id="deliveryDate"
-                  type="date"
-                  value={formData.deliveryDate}
-                  onChange={(e) => handleInputChange('deliveryDate', e.target.value)}
-                  className={errors.deliveryDate ? 'border-red-500' : ''}
+                <ThaiDatePicker
+                  selected={formData.deliveryDate ? new Date(formData.deliveryDate) : null}
+                  onChange={(date) => {
+                    if (date) {
+                      handleInputChange('deliveryDate', format(date, 'yyyy-MM-dd'))
+                    }
+                  }}
+                  placeholderText="เลือกวันที่ส่งมอบ"
+                  className={`flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${errors.deliveryDate ? 'border-red-500' : ''}`}
                   disabled={loading}
                 />
                 {errors.deliveryDate && (
                   <p className="text-sm text-red-500 mt-1">{errors.deliveryDate}</p>
                 )}
-              </div>
-
-              {/* สถานะ */}
-              <div>
-                <Label htmlFor="status">สถานะการส่งมอบ</Label>
-                <Select
-                  value={formData.status}
-                  onValueChange={(value) => handleInputChange('status', value)}
-                  disabled={loading}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        <span className={`px-2 py-1 rounded text-xs ${option.color}`}>
-                          {option.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
             </div>
 
@@ -324,17 +325,6 @@ export default function DeliveryForm({
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription className="text-red-800">
                   {errors.items}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* คำเตือนเกี่ยวกับสต็อก */}
-            {formData.status === 'SHIPPING' && formData.items.length > 0 && (
-              <Alert className="border-orange-200 bg-orange-50">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-orange-800">
-                  <strong>คำเตือน:</strong> เมื่อเปลี่ยนสถานะเป็น "กำลังส่ง"
-                  ระบบจะหักสต็อกวัตถุดิบตามจำนวนที่ระบุในรายการโดยอัตโนมัติ
                 </AlertDescription>
               </Alert>
             )}

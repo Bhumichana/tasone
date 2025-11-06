@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
           deliveryNumber,
           deliveryDate: new Date(deliveryDate),
           dealerId,
+          status: 'PENDING_RECEIPT', // รอดีลเลอร์รับเข้า
           notes,
           totalItems: items.length,
           items: {

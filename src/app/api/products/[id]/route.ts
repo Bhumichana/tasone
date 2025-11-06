@@ -71,7 +71,8 @@ export async function PUT(
       category,
       description,
       warrantyTerms,
-      thickness
+      thickness,
+      templateImage
     } = body
 
     // ตรวจสอบว่าสินค้ามีอยู่หรือไม่
@@ -123,7 +124,8 @@ export async function PUT(
         category,
         description: description || null,
         warrantyTerms: warrantyTerms || null,
-        thickness: thickness ? parseFloat(thickness) : null
+        thickness: thickness ? parseFloat(thickness) : null,
+        templateImage: templateImage || 'Certification-Form.jpg'
       },
       include: {
         warranties: {
