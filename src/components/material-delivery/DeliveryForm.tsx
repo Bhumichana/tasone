@@ -36,6 +36,7 @@ interface RawMaterial {
 interface DeliveryItemData {
   id?: string
   rawMaterialId: string
+  batchId: string
   batchNumber: string
   quantity: number
   unit: string
