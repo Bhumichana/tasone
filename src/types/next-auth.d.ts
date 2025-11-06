@@ -13,7 +13,7 @@ declare module 'next-auth' {
       phoneNumber: string
       dealerId?: string
       dealerName?: string
-      avatarUrl?: string | null
+      avatarUrl?: string
     } & DefaultSession['user']
   }
 
@@ -26,7 +26,7 @@ declare module 'next-auth' {
     phoneNumber: string
     dealerId?: string
     dealerName?: string
-    avatarUrl?: string | null
+    avatarUrl?: string
   }
 }
 
@@ -40,6 +40,6 @@ declare module 'next-auth/jwt' {
     phoneNumber: string
     dealerId?: string
     dealerName?: string
-    avatarUrl?: string | null
+    avatarUrl?: string
   }
 }

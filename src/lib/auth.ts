@@ -72,8 +72,8 @@ export const authOptions: NextAuthOptions = {
             lastName: user.lastName,
             phoneNumber: user.phoneNumber,
             dealerId: user.dealerId ?? undefined,
-            dealerName: user.dealer?.dealerName || null,
-            avatarUrl: user.profileImage || null,
+            dealerName: user.dealer?.dealerName || undefined,
+            avatarUrl: user.profileImage || undefined,
           };
 
           console.log('✅ Authorization successful:', {
@@ -121,8 +121,8 @@ export const authOptions: NextAuthOptions = {
         session.user.lastName = token.lastName as string
         session.user.phoneNumber = token.phoneNumber as string
         session.user.dealerId = token.dealerId as string | undefined
-        session.user.dealerName = token.dealerName as string | null
-        session.user.avatarUrl = token.avatarUrl as string | null
+        session.user.dealerName = token.dealerName as string | undefined
+        session.user.avatarUrl = token.avatarUrl as string | undefined
       }
       return session
     }
