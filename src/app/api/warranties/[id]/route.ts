@@ -303,12 +303,16 @@ export async function PUT(
     if (!isWithin5Days) {
       await prisma.headOfficeNotification.create({
         data: {
+          type: 'EDIT_REQUEST',
           warrantyId: params.id,
-          dealerId: existingWarranty.dealerId,
           notificationType: 'EDIT_REQUEST',
           title: 'คำขอแก้ไขใบรับประกัน',
           message: `${session.user.name || session.user.username} ขอแก้ไขใบรับประกันเลขที่ ${warrantyNumber} (เกิน 5 วัน)`,
-          editReason: editReason,
+          data: JSON.stringify({
+            dealerId: existingWarranty.dealerId,
+            editReason: editReason,
+            warrantyNumber: warrantyNumber
+          }),
           isRead: false,
           status: 'PENDING'
         }
