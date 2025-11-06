@@ -115,9 +115,9 @@ export async function GET(
     console.log('✓ Standard fonts loaded (Helvetica)')
 
     // ฟังก์ชันช่วยในการ format วันที่
-    const formatDate = (dateString: string | null): string => {
-      if (!dateString) return ''
-      const date = new Date(dateString)
+    const formatDate = (dateInput: string | Date | null): string => {
+      if (!dateInput) return ''
+      const date = dateInput instanceof Date ? dateInput : new Date(dateInput)
       const day = String(date.getDate()).padStart(2, '0')
       const month = String(date.getMonth() + 1).padStart(2, '0')
       const year = date.getFullYear()
