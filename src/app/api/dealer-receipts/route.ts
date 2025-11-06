@@ -18,8 +18,9 @@ export async function GET(request: NextRequest) {
     let whereClause: any = {}
 
     // Filter by dealer if user is dealer
-    if (session.user.userGroup === 'Dealer') {
-      whereClause.dealerId = session.user.dealerId
+    if (session.user.userGroup === 'Dealer' && session.user.dealerId) {
+      const dealerId = session.user.dealerId
+      whereClause.dealerId = dealerId
     }
 
     // Filter by status
@@ -70,9 +71,10 @@ export async function GET(request: NextRequest) {
     // Get pending deliveries (ที่ยังไม่มี receipt)
     let pendingDeliveries: any[] = []
     if (session.user.userGroup === 'Dealer' && session.user.dealerId) {
+      const dealerId = session.user.dealerId
       const rawDeliveries = await prisma.materialDelivery.findMany({
         where: {
-          dealerId: session.user.dealerId,
+          dealerId: dealerId,
           status: 'PENDING_RECEIPT', // รอดีลเลอร์รับเข้า
           dealerReceipt: null // ยังไม่มี receipt
         },
@@ -273,7 +275,7 @@ export async function POST(request: NextRequest) {
         // Update or create dealer stock
         const existingStock = await tx.dealerStock.findFirst({
           where: {
-            dealerId: session.user.dealerId,
+            dealerId: dealerId,
             materialCode: rawMaterial.materialCode,
             batchNumber: item.batchNumber
           }
@@ -293,7 +295,7 @@ export async function POST(request: NextRequest) {
         } else {
           await tx.dealerStock.create({
             data: {
-              dealerId: session.user.dealerId,
+              dealerId: dealerId,
               materialCode: rawMaterial.materialCode,
               materialName: rawMaterial.materialName,
               materialType: rawMaterial.materialType,
