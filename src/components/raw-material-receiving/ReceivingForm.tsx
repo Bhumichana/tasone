@@ -63,7 +63,7 @@ export default function ReceivingForm({
     storageLocation: '',
     expiryDate: '',
     notes: '',
-    qualityStatus: 'PASSED',
+    qualityStatus: 'APPROVED',
     ...initialData
   })
 
