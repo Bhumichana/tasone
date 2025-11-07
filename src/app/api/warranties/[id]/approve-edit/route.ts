@@ -59,6 +59,30 @@ export async function POST(
       )
     }
 
+    // ดึง materialUsage เดิมจาก history (materialUsage ก่อนแก้ไข)
+    // เพื่อนำมาคืนสต็อกเมื่ออนุมัติ
+    const latestHistory = await prisma.warrantyHistory.findFirst({
+      where: {
+        warrantyId: params.id,
+        changesSummary: {
+          contains: 'แก้ไข'
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
+
+    let oldMaterialUsage: string | null = null
+    if (latestHistory && latestHistory.oldData) {
+      try {
+        const oldData = JSON.parse(latestHistory.oldData)
+        oldMaterialUsage = oldData.materialUsage || null
+      } catch (e) {
+        console.error('Error parsing oldData from history:', e)
+      }
+    }
+
     // อัปเดตสถานะการอนุมัติ
     const updatedWarranty = await prisma.warranty.update({
       where: { id: params.id },
@@ -98,6 +122,100 @@ export async function POST(
         product: true
       }
     })
+
+    // ========== การจัดการสต็อกวัตถุดิบ (เมื่ออนุมัติ) ==========
+    if (approved && oldMaterialUsage && updatedWarranty.materialUsage) {
+      try {
+        console.log('🔄 [Approve Edit] Starting stock management...')
+
+        // STEP 1: คืนสต็อกเดิมกลับเข้าคลัง
+        const oldMaterials = JSON.parse(oldMaterialUsage)
+        console.log('  → Restoring old stock from previous warranty...')
+
+        for (const material of oldMaterials) {
+          const { materialCode, batches } = material
+
+          if (!materialCode || !batches || batches.length === 0) {
+            continue
+          }
+
+          for (const batchAllocation of batches) {
+            const { batchId, batchNumber, quantityUsed } = batchAllocation
+
+            if (!batchId || !batchNumber) {
+              continue
+            }
+
+            const dealerStock = await prisma.dealerStock.findFirst({
+              where: {
+                id: batchId,
+                dealerId: updatedWarranty.dealerId,
+                materialCode: materialCode,
+                batchNumber: batchNumber
+              }
+            })
+
+            if (dealerStock) {
+              await prisma.dealerStock.update({
+                where: { id: dealerStock.id },
+                data: {
+                  currentStock: {
+                    increment: quantityUsed
+                  }
+                }
+              })
+              console.log(`  ✓ Restored ${quantityUsed} to ${materialCode} (Batch: ${batchNumber})`)
+            }
+          }
+        }
+
+        // STEP 2: ตัดสต็อกใหม่
+        const newMaterials = JSON.parse(updatedWarranty.materialUsage)
+        console.log('  → Deducting new stock...')
+
+        for (const material of newMaterials) {
+          const { materialCode, batches } = material
+
+          if (!materialCode || !batches || batches.length === 0) {
+            continue
+          }
+
+          for (const batchAllocation of batches) {
+            const { batchId, batchNumber, quantityUsed } = batchAllocation
+
+            if (!batchId || !batchNumber) {
+              continue
+            }
+
+            const dealerStock = await prisma.dealerStock.findFirst({
+              where: {
+                id: batchId,
+                dealerId: updatedWarranty.dealerId,
+                materialCode: materialCode,
+                batchNumber: batchNumber
+              }
+            })
+
+            if (dealerStock) {
+              await prisma.dealerStock.update({
+                where: { id: dealerStock.id },
+                data: {
+                  currentStock: {
+                    decrement: quantityUsed
+                  }
+                }
+              })
+              console.log(`  ✓ Deducted ${quantityUsed} from ${materialCode} (Batch: ${batchNumber})`)
+            }
+          }
+        }
+
+        console.log('✓ [Approve Edit] Stock management completed successfully')
+      } catch (error) {
+        console.error('❌ [Approve Edit] Error managing stock:', error)
+        // Note: การ approve แล้ว แต่อาจมีปัญหาในการจัดการสต็อก
+      }
+    }
 
     // อัปเดตสถานะการแจ้งเตือน
     await prisma.headOfficeNotification.updateMany({

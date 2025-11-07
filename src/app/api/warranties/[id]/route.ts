@@ -207,6 +207,12 @@ export async function PUT(
       }
     }
 
+    // ========== การจัดการสต็อกวัตถุดิบ ==========
+    // หมายเหตุ: ไม่มีการจัดการสต็อกใน PUT endpoint
+    // การจัดการสต็อก (คืนสต็อกเดิม + ตัดสต็อกใหม่) จะทำเมื่อ HeadOffice อนุมัติเท่านั้น
+    // ดู /api/warranties/[id]/approve-edit endpoint สำหรับ logic การจัดการสต็อก
+    // ==============================================================
+
     // คำนวณวันหมดอายุใหม่
     const warrantyStartDate = new Date(warrantyDate)
     const expiryDate = new Date(warrantyStartDate)
@@ -252,7 +258,7 @@ export async function PUT(
         editedBy: session.user.username || session.user.email || 'Unknown',
 
         // ระบบอนุมัติการแก้ไข
-        editApproved: isWithin5Days,  // อนุมัติอัตโนมัติถ้าภายใน 5 วัน
+        editApproved: false,  // ทุกการแก้ไขต้องรออนุมัติจาก HeadOffice เสมอ
         editReason: editReason || null,  // บันทึกเหตุผลการแก้ไข (ถ้ามี)
 
         // สร้าง history record
@@ -269,7 +275,8 @@ export async function PUT(
               customerEmail: existingWarranty.customerEmail,
               customerAddress: existingWarranty.customerAddress,
               warrantyDate: existingWarranty.warrantyDate,
-              warrantyPeriodMonths: existingWarranty.warrantyPeriodMonths
+              warrantyPeriodMonths: existingWarranty.warrantyPeriodMonths,
+              materialUsage: existingWarranty.materialUsage  // เก็บ materialUsage เดิมสำหรับคืนสต็อก
             }),
             newData: JSON.stringify({
               warrantyNumber,
@@ -278,7 +285,8 @@ export async function PUT(
               customerEmail,
               customerAddress,
               warrantyDate: warrantyStartDate,
-              warrantyPeriodMonths: parseInt(warrantyPeriodMonths)
+              warrantyPeriodMonths: parseInt(warrantyPeriodMonths),
+              materialUsage: materialUsage  // เก็บ materialUsage ใหม่สำหรับตัดสต็อก
             }),
             reason: isWithin5Days
               ? 'แก้ไขข้อมูลใบรับประกันภายใน 5 วัน (อนุมัติอัตโนมัติ)'

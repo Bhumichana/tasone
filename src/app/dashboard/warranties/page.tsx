@@ -149,7 +149,8 @@ export default function WarrantiesPage() {
     purchaseOrderNo: '',
     installationArea: '',
     thickness: '',
-    chemicalBatchNo: ''
+    chemicalBatchNo: '',
+    editReason: ''            // เพิ่ม: เหตุผลการแก้ไข (สำหรับกรณีเกิน 5 วัน)
   })
 
   // State สำหรับ BOM และการคำนวณวัตถุดิบ
@@ -423,7 +424,8 @@ export default function WarrantiesPage() {
       purchaseOrderNo: warranty.purchaseOrderNo || '',
       installationArea: warranty.installationArea?.toString() || '',
       thickness: product?.thickness?.toString() || warranty.thickness?.toString() || '',  // ดึงจาก product
-      chemicalBatchNo: warranty.chemicalBatchNo || ''
+      chemicalBatchNo: warranty.chemicalBatchNo || '',
+      editReason: ''  // เคลียร์เหตุผลการแก้ไข (ต้องกรอกใหม่ทุกครั้ง)
     })
     // ดึงสต็อกของดีลเลอร์เพื่อใช้ในการคำนวณวัตถุดิบ
     await fetchDealerStock()
@@ -547,7 +549,8 @@ export default function WarrantiesPage() {
       purchaseOrderNo: '',
       installationArea: '',
       thickness: '',
-      chemicalBatchNo: ''
+      chemicalBatchNo: '',
+      editReason: ''             // เคลียร์เหตุผลการแก้ไข
     })
   }
 
@@ -648,8 +651,28 @@ export default function WarrantiesPage() {
                       const dd = String(today.getDate()).padStart(2, '0')
                       const mm = String(today.getMonth() + 1).padStart(2, '0')
                       const yyyy = today.getFullYear()
-                      const count = warranties.length + 1
-                      const newWarrantyNumber = `${dealerData.dealer.dealerCode}-${dd}${mm}${yyyy}-${String(count).padStart(3, '0')}`
+
+                      // Query หมายเลขล่าสุดจาก database แทน warranties.length
+                      const datePrefix = `${dealerData.dealer.dealerCode}-${dd}${mm}${yyyy}`
+                      const existingWarranties = await fetch(`/api/warranties?dealerId=${session.user.dealerId}`)
+                      const warrantiesData = await existingWarranties.json()
+
+                      // หาหมายเลขล่าสุดที่มี prefix เดียวกัน
+                      const todayWarranties = warrantiesData.warranties.filter((w: any) =>
+                        w.warrantyNumber.startsWith(datePrefix)
+                      )
+
+                      let nextNumber = 1
+                      if (todayWarranties.length > 0) {
+                        // หาเลขลำดับสูงสุด
+                        const maxNumber = Math.max(...todayWarranties.map((w: any) => {
+                          const parts = w.warrantyNumber.split('-')
+                          return parseInt(parts[parts.length - 1]) || 0
+                        }))
+                        nextNumber = maxNumber + 1
+                      }
+
+                      const newWarrantyNumber = `${datePrefix}-${String(nextNumber).padStart(3, '0')}`
 
                       setFormData(prev => ({
                         ...prev,
@@ -1277,6 +1300,26 @@ export default function WarrantiesPage() {
                 <p className="mt-1 text-xs text-gray-500">*ดึงจากข้อมูลสินค้า ไม่สามารถแก้ไขได้</p>
               </div>
 
+              {/* เหตุผลการแก้ไข - แสดงเฉพาะเมื่อแก้ไข (ภายใน 5 วัน) */}
+              {editingWarranty && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    เหตุผลการแก้ไข <span className="text-red-600">*</span>
+                  </label>
+                  <textarea
+                    value={formData.editReason}
+                    onChange={(e) => setFormData({ ...formData, editReason: e.target.value })}
+                    className="mt-1 block w-full border border-orange-300 rounded-md px-3 py-2 focus:ring-orange-500 focus:border-orange-500"
+                    rows={3}
+                    placeholder="กรุณาระบุเหตุผลในการแก้ไขใบรับประกัน"
+                    required
+                  />
+                  <p className="mt-1 text-xs text-orange-600">
+                    *ทุกการแก้ไขจำเป็นต้องระบุเหตุผลและรอการอนุมัติจาก HeadOffice
+                  </p>
+                </div>
+              )}
+
               <div className="pt-4">
                 {/* แสดงข้อความเตือนเมื่อสต็อกไม่พอ */}
                 {calculatedMaterials.length > 0 && !calculatedMaterials.every(m => m.isStockSufficient) && (
@@ -1311,7 +1354,7 @@ export default function WarrantiesPage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={loading || (calculatedMaterials.length > 0 && !calculatedMaterials.every(m => m.isStockSufficient))}
+                    disabled={loading || (!editingWarranty && calculatedMaterials.length > 0 && !calculatedMaterials.every(m => m.isStockSufficient))}
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? 'กำลังบันทึก...' : (editingWarranty ? 'บันทึก' : 'ออกใบรับประกัน')}
