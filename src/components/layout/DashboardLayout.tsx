@@ -24,7 +24,8 @@ import {
   BarChart,
   Store,
   FileImage,
-  AlertTriangle
+  AlertTriangle,
+  Warehouse
 } from 'lucide-react'
 import NotificationBell from './NotificationBell'
 
@@ -45,6 +46,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       { name: 'จัดการตัวแทนจำหน่าย', href: '/dashboard/dealers', icon: Building2, current: pathname === '/dashboard/dealers' },
       { name: 'รหัสวัตถุดิบ (Raw Materials Code)', href: '/dashboard/raw-materials', icon: Package, current: pathname === '/dashboard/raw-materials' },
       { name: 'การรับเข้าวัตถุดิบ', href: '/dashboard/raw-material-receiving', icon: Truck, current: pathname === '/dashboard/raw-material-receiving' },
+      { name: 'คลังสต็อกวัตถุดิบ', href: '/dashboard/warehouse-stock', icon: Warehouse, current: pathname === '/dashboard/warehouse-stock' },
       { name: 'การส่งมอบวัตถุดิบ', href: '/dashboard/material-deliveries', icon: Send, current: pathname === '/dashboard/material-deliveries' },
       { name: 'จัดการวัตถุดิบหมดอายุ', href: '/dashboard/expired-materials', icon: AlertTriangle, current: pathname === '/dashboard/expired-materials' },
       { name: 'จัดการเทมเพลท', href: '/dashboard/templates', icon: FileImage, current: pathname === '/dashboard/templates' },
