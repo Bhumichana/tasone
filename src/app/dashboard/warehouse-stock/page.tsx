@@ -184,12 +184,12 @@ export default function WarehouseStockPage() {
 
   if (!session) return null
 
-  if (status === 'loading' || (session.user.userGroup !== 'HeadOffice')) {
+  // Check if user is not HeadOffice
+  if (session.user.userGroup !== 'HeadOffice') {
     return (
       <DashboardLayout>
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>กำลังโหลด...</p>
+          <p className="text-gray-600">คุณไม่มีสิทธิ์เข้าถึงหน้านี้</p>
         </div>
       </DashboardLayout>
     )
