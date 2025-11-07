@@ -57,7 +57,7 @@ export default function DeliveryItemsList({
     rawMaterialId: '',
     batchId: '',
     batchNumber: '',
-    quantity: 0,
+    quantity: undefined,
     unit: ''
   })
 
@@ -113,7 +113,7 @@ export default function DeliveryItemsList({
       rawMaterialId: '',
       batchId: '',
       batchNumber: '',
-      quantity: 0,
+      quantity: undefined,
       unit: ''
     })
     setBatches([])
@@ -252,7 +252,7 @@ export default function DeliveryItemsList({
                 step="0.01"
                 min="0"
                 value={newItem.quantity || ''}
-                onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || 0 })}
+                onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || undefined })}
                 placeholder="0.00"
                 disabled={loading}
               />
