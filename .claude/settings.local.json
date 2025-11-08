@@ -27,7 +27,10 @@
       "Read(//g/**)",
       "Bash(git push:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(\"G:\\vibeapps\\src\\app\\login\\page.tsx\")",
+      "Bash(dir:*)",
+      "Bash(npx tsx:*)"
     ],
     "deny": [],
     "ask": []

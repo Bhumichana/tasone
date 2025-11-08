@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import fs from 'fs/promises'
-import path from 'path'
+import { list } from '@vercel/blob'
 
 // GET /api/templates - ดึงรายการ template ทั้งหมด
 export async function GET(request: NextRequest) {
@@ -17,31 +16,28 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // อ่านไฟล์ทั้งหมดจาก public/
-    const publicDir = path.join(process.cwd(), 'public')
-    const files = await fs.readdir(publicDir)
+    // ดึงรายการไฟล์จาก Vercel Blob ที่อยู่ใน folder templates/
+    const { blobs } = await list({
+      prefix: 'templates/',
+    })
 
-    // กรองเฉพาะไฟล์ JPG ที่ขึ้นต้นด้วย "Certification-Form"
-    const templateFiles = files.filter(file =>
-      file.startsWith('Certification-Form') &&
-      (file.endsWith('.jpg') || file.endsWith('.jpeg'))
+    // กรองเฉพาะไฟล์ที่ขึ้นต้นด้วย "Certification-Form"
+    const templateFiles = blobs.filter(blob =>
+      blob.pathname.includes('Certification-Form') &&
+      (blob.pathname.endsWith('.jpg') || blob.pathname.endsWith('.jpeg'))
     )
 
-    // ดึงข้อมูลรายละเอียดของแต่ละไฟล์
-    const templates = await Promise.all(
-      templateFiles.map(async (filename) => {
-        const filePath = path.join(publicDir, filename)
-        const stats = await fs.stat(filePath)
-
-        return {
-          filename,
-          size: stats.size,
-          createdAt: stats.birthtime,
-          modifiedAt: stats.mtime,
-          url: `/${filename}` // URL สำหรับเข้าถึงไฟล์
-        }
-      })
-    )
+    // แปลงข้อมูลให้ตรงกับ format เดิม
+    const templates = templateFiles.map((blob) => {
+      const filename = blob.pathname.replace('templates/', '')
+      return {
+        filename,
+        size: blob.size,
+        createdAt: new Date(blob.uploadedAt),
+        modifiedAt: new Date(blob.uploadedAt),
+        url: blob.url
+      }
+    })
 
     // เรียงตามวันที่สร้าง (ใหม่สุดก่อน)
     templates.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
@@ -110,27 +106,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // ตรวจสอบว่าชื่อไฟล์ซ้ำหรือไม่
-    const publicDir = path.join(process.cwd(), 'public')
-    const filePath = path.join(publicDir, originalFilename)
+    // ตรวจสอบว่าชื่อไฟล์ซ้ำหรือไม่ (ดึงรายการจาก Blob)
+    const { blobs } = await list({
+      prefix: 'templates/',
+    })
 
-    try {
-      await fs.access(filePath)
-      // ถ้าไม่ error แปลว่าไฟล์มีอยู่แล้ว
+    const existingFile = blobs.find(blob =>
+      blob.pathname === `templates/${originalFilename}`
+    )
+
+    if (existingFile) {
       return NextResponse.json(
         { error: 'File already exists. Please rename or delete the existing file first.' },
         { status: 400 }
       )
-    } catch {
-      // ไฟล์ไม่มี ดำเนินการต่อได้
     }
 
-    // แปลงไฟล์เป็น Buffer
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-
-    // บันทึกไฟล์ลง public/
-    await fs.writeFile(filePath, buffer)
+    // Upload to Vercel Blob
+    const { put } = await import('@vercel/blob')
+    const blob = await put(`templates/${originalFilename}`, file, {
+      access: 'public',
+      addRandomSuffix: false,
+    })
 
     console.log('✅ Template uploaded:', originalFilename)
 
@@ -138,7 +135,7 @@ export async function POST(request: NextRequest) {
       message: 'Template uploaded successfully',
       filename: originalFilename,
       size: file.size,
-      url: `/${originalFilename}`
+      url: blob.url
     }, { status: 201 })
   } catch (error) {
     console.error('Error uploading template:', error)

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { put } from '@vercel/blob';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,24 +37,17 @@ export async function POST(request: NextRequest) {
     // Generate unique filename
     const timestamp = Date.now();
     const extension = file.name.split('.').pop();
-    const fileName = `avatar-${session.user.id}-${timestamp}.${extension}`;
+    const fileName = `avatars/avatar-${session.user.id}-${timestamp}.${extension}`;
 
-    // Use local storage for development
-    const localUrl = `/uploads/avatars/${fileName}`;
-
-    // Save file locally
-    const buffer = await file.arrayBuffer();
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
-
-    // Ensure directory exists
-    await mkdir(uploadDir, { recursive: true });
-
-    const localPath = path.join(uploadDir, fileName);
-    await writeFile(localPath, Buffer.from(buffer));
+    // Upload to Vercel Blob
+    const blob = await put(fileName, file, {
+      access: 'public',
+      addRandomSuffix: false,
+    });
 
     return NextResponse.json({
       message: "อัพโหลดรูปโปรไฟล์สำเร็จ",
-      url: localUrl
+      url: blob.url
     });
 
   } catch (error) {

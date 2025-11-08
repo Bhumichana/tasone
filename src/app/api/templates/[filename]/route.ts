@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import fs from 'fs/promises'
-import path from 'path'
+import { del, list } from '@vercel/blob'
 
 // DELETE /api/templates/[filename] - ลบ template
 export async function DELETE(
@@ -39,21 +38,24 @@ export async function DELETE(
       )
     }
 
-    const publicDir = path.join(process.cwd(), 'public')
-    const filePath = path.join(publicDir, filename)
+    // ตรวจสอบว่าไฟล์มีอยู่จริงหรือไม่ใน Vercel Blob
+    const { blobs } = await list({
+      prefix: 'templates/',
+    })
 
-    // ตรวจสอบว่าไฟล์มีอยู่จริงหรือไม่
-    try {
-      await fs.access(filePath)
-    } catch {
+    const existingFile = blobs.find(blob =>
+      blob.pathname === `templates/${filename}`
+    )
+
+    if (!existingFile) {
       return NextResponse.json(
         { error: 'Template not found' },
         { status: 404 }
       )
     }
 
-    // ลบไฟล์
-    await fs.unlink(filePath)
+    // ลบไฟล์จาก Vercel Blob
+    await del(existingFile.url)
 
     console.log('🗑️ Template deleted:', filename)
 
