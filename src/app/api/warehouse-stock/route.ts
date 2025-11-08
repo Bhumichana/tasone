@@ -48,6 +48,9 @@ export async function GET(request: NextRequest) {
     // กรองสต็อกต่ำ (< 10)
     if (lowStock === 'true') {
       where.currentStock = { lt: 10, gt: 0 }
+    } else {
+      // กรองเฉพาะ batch ที่ยังมีสต็อกเหลืออยู่
+      where.currentStock = { gt: 0 }
     }
 
     // ดึงข้อมูล Batch ทั้งหมด
