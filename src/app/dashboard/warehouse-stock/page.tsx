@@ -81,6 +81,9 @@ export default function WarehouseStockPage() {
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [lowStockFilter, setLowStockFilter] = useState(false)
   const [error, setError] = useState('')
+  const [showRecertifyModal, setShowRecertifyModal] = useState(false)
+  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   // ตรวจสอบสิทธิ์
   useEffect(() => {
@@ -121,6 +124,35 @@ export default function WarehouseStockPage() {
       setError('เกิดข้อผิดพลาดในการดึงข้อมูล')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRecertify = async () => {
+    if (!selectedBatch) return
+
+    setSubmitting(true)
+    try {
+      const response = await fetch(`/api/warehouse-stock/${selectedBatch.id}/recertify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        alert('ต่ออายุวัตถุดิบสำเร็จ!')
+        setShowRecertifyModal(false)
+        setSelectedBatch(null)
+        fetchStock()
+      } else {
+        const errorData = await response.json()
+        alert(errorData.error || 'เกิดข้อผิดพลาด')
+      }
+    } catch (error) {
+      console.error('Error recertifying:', error)
+      alert('เกิดข้อผิดพลาดในการต่ออายุ')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -397,6 +429,7 @@ export default function WarehouseStockPage() {
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">ซัพพลายเออร์</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">วันหมดอายุ</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">สถานะ</th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">การดำเนินการ</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -451,6 +484,23 @@ export default function WarehouseStockPage() {
                                 <td className="px-4 py-3">
                                   {getStatusBadge(batch.status)}
                                 </td>
+                                <td className="px-4 py-3 text-center">
+                                  {batch.expiryDate && new Date(batch.expiryDate) < new Date() && batch.currentStock > 0 ? (
+                                    <Button
+                                      onClick={() => {
+                                        setSelectedBatch(batch)
+                                        setShowRecertifyModal(true)
+                                      }}
+                                      size="sm"
+                                      className="bg-green-600 hover:bg-green-700 text-white gap-1"
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                      ต่ออายุ
+                                    </Button>
+                                  ) : (
+                                    <span className="text-gray-400 text-sm">-</span>
+                                  )}
+                                </td>
                               </tr>
                             )
                           })}
@@ -464,6 +514,75 @@ export default function WarehouseStockPage() {
           )}
         </div>
       </div>
+
+      {/* Recertification Modal */}
+      {showRecertifyModal && selectedBatch && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">
+              ยืนยันการต่ออายุวัตถุดิบ
+            </h3>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-md">
+                <p className="text-sm">
+                  <span className="font-medium">วัตถุดิบ:</span> {selectedBatch.rawMaterial.materialName}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">รหัส:</span> {selectedBatch.rawMaterial.materialCode}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">Batch:</span> {selectedBatch.batchNumber}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">สต็อก:</span> {selectedBatch.currentStock.toLocaleString()} {selectedBatch.unit}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">วันหมดอายุเดิม:</span> {formatDate(selectedBatch.expiryDate!)}
+                </p>
+                <p className="text-sm font-bold text-green-600">
+                  <span className="font-medium text-gray-700">วันหมดอายุใหม่:</span>{' '}
+                  {formatDate(
+                    new Date(
+                      new Date(selectedBatch.expiryDate!).getTime() + 60 * 24 * 60 * 60 * 1000
+                    ).toISOString()
+                  )}
+                </p>
+                <p className="text-sm">
+                  <span className="font-medium">ต่ออายุ:</span> +60 วัน
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-md">
+                <p className="text-xs text-yellow-800">
+                  <strong>หมายเหตุ:</strong> การต่ออายุจะเปลี่ยนสถานะจาก "หมดอายุ" เป็น "พร้อมใช้"
+                  และจะไม่สามารถย้อนกลับได้
+                </p>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <Button
+                  onClick={() => {
+                    setShowRecertifyModal(false)
+                    setSelectedBatch(null)
+                  }}
+                  disabled={submitting}
+                  variant="outline"
+                >
+                  ยกเลิก
+                </Button>
+                <Button
+                  onClick={handleRecertify}
+                  disabled={submitting}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {submitting ? 'กำลังดำเนินการ...' : 'ยืนยันต่ออายุ'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 }
