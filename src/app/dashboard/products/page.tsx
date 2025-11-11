@@ -411,42 +411,27 @@ export default function ProductsPage() {
                     </div>
                   </div>
 
-                  {/* สูตรการผลิต */}
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    {product.recipe ? (
-                      <div
-                        onClick={() => {
-                          if (session?.user.userGroup === 'HeadOffice') {
-                            handleOpenRecipeModal(product.id, true)
-                          }
-                        }}
-                        className={`flex items-center justify-between p-2 rounded-md transition-colors ${
-                          session?.user.userGroup === 'HeadOffice'
-                            ? 'cursor-pointer hover:bg-green-50'
-                            : 'cursor-not-allowed opacity-75'
-                        }`}
-                        title={
-                          session?.user.userGroup === 'HeadOffice'
-                            ? 'คลิกเพื่อดูรายละเอียดสูตร'
-                            : 'สูตรการผลิตเป็นความลับทางธุรกิจ'
-                        }
-                      >
-                        <div className="flex items-center text-sm text-green-600">
-                          <ChefHat className="h-4 w-4 mr-1" />
-                          <span>{product.recipe.recipeName}</span>
-                          {session?.user.userGroup === 'HeadOffice' && (
+                  {/* สูตรการผลิต - เฉพาะ HeadOffice */}
+                  {session?.user.userGroup === 'HeadOffice' && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      {product.recipe ? (
+                        <div
+                          onClick={() => handleOpenRecipeModal(product.id, true)}
+                          className="flex items-center justify-between p-2 rounded-md transition-colors cursor-pointer hover:bg-green-50"
+                          title="คลิกเพื่อดูรายละเอียดสูตร"
+                        >
+                          <div className="flex items-center text-sm text-green-600">
+                            <ChefHat className="h-4 w-4 mr-1" />
+                            <span>{product.recipe.recipeName}</span>
                             <span className="ml-2 text-xs text-gray-500">
                               ({product.recipe._count.items} รายการ)
                             </span>
-                          )}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            v{product.recipe.version}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500">
-                          v{product.recipe.version}
-                        </div>
-                      </div>
-                    ) : (
-                      // เฉพาะ HeadOffice เท่านั้นที่สามารถเพิ่มสูตรได้
-                      session?.user.userGroup === 'HeadOffice' ? (
+                      ) : (
                         <div
                           onClick={() => handleOpenRecipeModal(product.id, false)}
                           className="flex items-center text-sm text-gray-400 cursor-pointer hover:bg-blue-50 hover:text-blue-600 p-2 rounded-md transition-colors"
@@ -455,14 +440,9 @@ export default function ProductsPage() {
                           <ChefHat className="h-4 w-4 mr-1" />
                           <span>👨‍🍳 ยังไม่มีสูตรการผลิต</span>
                         </div>
-                      ) : (
-                        <div className="flex items-center text-sm text-gray-400 p-2">
-                          <ChefHat className="h-4 w-4 mr-1" />
-                          <span>ยังไม่มีสูตรการผลิต</span>
-                        </div>
-                      )
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="mt-4 pt-4 border-t border-gray-200 text-xs text-gray-500">
                     <div>สร้างเมื่อ: {new Date(product.createdAt).toLocaleDateString('th-TH')}</div>
