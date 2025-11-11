@@ -402,6 +402,12 @@ export default function WarrantiesPage() {
   const handleEdit = async (warranty: Warranty) => {
     setEditingWarranty(warranty)
 
+    // ดึงสต็อกของดีลเลอร์และสูตรสินค้าก่อนเพื่อให้พร้อมสำหรับการคำนวณวัตถุดิบ
+    await Promise.all([
+      fetchDealerStock(),
+      fetchProductRecipe(warranty.productId)
+    ])
+
     // ดึงข้อมูลสินค้าเพื่อเซ็ต thickness และ warrantyTerms
     const product = products.find(p => p.id === warranty.productId)
 
@@ -427,8 +433,7 @@ export default function WarrantiesPage() {
       chemicalBatchNo: warranty.chemicalBatchNo || '',
       editReason: ''  // เคลียร์เหตุผลการแก้ไข (ต้องกรอกใหม่ทุกครั้ง)
     })
-    // ดึงสต็อกของดีลเลอร์เพื่อใช้ในการคำนวณวัตถุดิบ
-    await fetchDealerStock()
+
     setShowAddForm(true)
   }
 
@@ -1507,9 +1512,6 @@ export default function WarrantiesPage() {
                             Batch Number
                           </th>
                           <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                            ต่อ 1 ตร.ม.
-                          </th>
-                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                             ปริมาณที่ใช้
                           </th>
                           <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
@@ -1551,11 +1553,6 @@ export default function WarrantiesPage() {
                                         {batch.batchNumber}
                                       </span>
                                     </td>
-                                    {batchIndex === 0 && (
-                                      <td className="px-3 py-2 text-right text-sm text-gray-900" rowSpan={material.batches.length}>
-                                        {material.quantityPerUnit.toFixed(3)} {material.unit}
-                                      </td>
-                                    )}
                                     <td className="px-3 py-2 text-right">
                                       <span className="text-sm font-semibold text-gray-900">
                                         {batch.quantityUsed.toFixed(3)} {material.unit}
@@ -1590,9 +1587,6 @@ export default function WarrantiesPage() {
                                         {material.batchNumber || 'N/A'}
                                       </span>
                                     </td>
-                                    <td className="px-3 py-2 text-right text-sm text-gray-900">
-                                      {material.quantityPerUnit.toFixed(3)} {material.unit}
-                                    </td>
                                     <td className="px-3 py-2 text-right">
                                       <span className="text-sm font-semibold text-gray-900">
                                         {material.totalQuantity.toFixed(3)} {material.unit}
@@ -1611,7 +1605,7 @@ export default function WarrantiesPage() {
                             console.error('Error parsing materialUsage:', error)
                             return (
                               <tr>
-                                <td colSpan={6} className="px-3 py-4 text-center text-sm text-red-600">
+                                <td colSpan={5} className="px-3 py-4 text-center text-sm text-red-600">
                                   ไม่สามารถแสดงข้อมูลวัตถุดิบได้
                                 </td>
                               </tr>

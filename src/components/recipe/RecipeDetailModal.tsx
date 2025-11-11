@@ -208,87 +208,97 @@ export default function RecipeDetailModal({
               </div>
             </div>
 
-            {/* รายการวัตถุดิบ */}
-            <div>
-              <h4 className="text-md font-semibold text-gray-900 mb-4">รายการวัตถุดิบในสูตร</h4>
+            {/* รายการวัตถุดิบ - เฉพาะ HeadOffice เท่านั้น */}
+            {session?.user?.userGroup === 'HeadOffice' ? (
+              <div>
+                <h4 className="text-md font-semibold text-gray-900 mb-4">รายการวัตถุดิบในสูตร</h4>
 
-              {recipe.items.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-md">
-                  <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-500">ไม่มีวัตถุดิบในสูตร</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          วัตถุดิบ
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ประเภท
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ปริมาณ
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          หน่วย
-                        </th>
-                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          สต็อกปัจจุบัน
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          หมายเหตุ
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {recipe.items.map((item, index) => (
-                        <tr key={item.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-4">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {item.rawMaterial.materialName}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {item.rawMaterial.materialCode}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                              {item.rawMaterial.materialType}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <p className="text-sm font-semibold text-gray-900">
-                              {item.quantity.toFixed(3)}
-                            </p>
-                          </td>
-                          <td className="px-4 py-4">
-                            <p className="text-sm text-gray-900">{item.unit}</p>
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <p className={`text-sm font-medium ${
-                              item.rawMaterial.currentStock >= item.quantity
-                                ? 'text-green-600'
-                                : 'text-red-600'
-                            }`}>
-                              {item.rawMaterial.currentStock.toFixed(3)} {item.rawMaterial.unit}
-                            </p>
-                          </td>
-                          <td className="px-4 py-4">
-                            <p className="text-xs text-gray-600">
-                              {item.notes || '-'}
-                            </p>
-                          </td>
+                {recipe.items.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 rounded-md">
+                    <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500">ไม่มีวัตถุดิบในสูตร</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            วัตถุดิบ
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            ประเภท
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            ปริมาณ
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            หน่วย
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            สต็อกปัจจุบัน
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            หมายเหตุ
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {recipe.items.map((item, index) => (
+                          <tr key={item.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  {item.rawMaterial.materialName}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {item.rawMaterial.materialCode}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {item.rawMaterial.materialType}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {item.quantity.toFixed(3)}
+                              </p>
+                            </td>
+                            <td className="px-4 py-4">
+                              <p className="text-sm text-gray-900">{item.unit}</p>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <p className={`text-sm font-medium ${
+                                item.rawMaterial.currentStock >= item.quantity
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              }`}>
+                                {item.rawMaterial.currentStock.toFixed(3)} {item.rawMaterial.unit}
+                              </p>
+                            </td>
+                            <td className="px-4 py-4">
+                              <p className="text-xs text-gray-600">
+                                {item.notes || '-'}
+                              </p>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+                <Package className="h-12 w-12 text-yellow-600 mx-auto mb-3" />
+                <h4 className="text-md font-semibold text-gray-900 mb-2">สูตรการผลิตเป็นความลับทางธุรกิจ</h4>
+                <p className="text-sm text-gray-600">
+                  เฉพาะ HeadOffice เท่านั้นที่สามารถดูรายละเอียดสูตร BOM ได้
+                </p>
+              </div>
+            )}
 
             {/* ปุ่มดำเนินการ */}
             <div className="flex justify-end space-x-3 pt-4 border-t">

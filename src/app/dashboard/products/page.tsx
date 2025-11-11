@@ -415,15 +415,30 @@ export default function ProductsPage() {
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     {product.recipe ? (
                       <div
-                        onClick={() => handleOpenRecipeModal(product.id, true)}
-                        className="flex items-center justify-between cursor-pointer hover:bg-green-50 p-2 rounded-md transition-colors"
+                        onClick={() => {
+                          if (session?.user.userGroup === 'HeadOffice') {
+                            handleOpenRecipeModal(product.id, true)
+                          }
+                        }}
+                        className={`flex items-center justify-between p-2 rounded-md transition-colors ${
+                          session?.user.userGroup === 'HeadOffice'
+                            ? 'cursor-pointer hover:bg-green-50'
+                            : 'cursor-not-allowed opacity-75'
+                        }`}
+                        title={
+                          session?.user.userGroup === 'HeadOffice'
+                            ? 'คลิกเพื่อดูรายละเอียดสูตร'
+                            : 'สูตรการผลิตเป็นความลับทางธุรกิจ'
+                        }
                       >
                         <div className="flex items-center text-sm text-green-600">
                           <ChefHat className="h-4 w-4 mr-1" />
                           <span>{product.recipe.recipeName}</span>
-                          <span className="ml-2 text-xs text-gray-500">
-                            ({product.recipe._count.items} รายการ)
-                          </span>
+                          {session?.user.userGroup === 'HeadOffice' && (
+                            <span className="ml-2 text-xs text-gray-500">
+                              ({product.recipe._count.items} รายการ)
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-gray-500">
                           v{product.recipe.version}
@@ -701,9 +716,16 @@ export default function ProductsPage() {
                     <div className="flex justify-between items-start mb-2">
                       <div>
                         <p className="font-medium text-green-800">{selectedProduct.recipe.recipeName}</p>
-                        <p className="text-sm text-green-600">
-                          จำนวนวัตถุดิบ: {selectedProduct.recipe._count.items} รายการ
-                        </p>
+                        {session?.user.userGroup === 'HeadOffice' && (
+                          <p className="text-sm text-green-600">
+                            จำนวนวัตถุดิบ: {selectedProduct.recipe._count.items} รายการ
+                          </p>
+                        )}
+                        {session?.user.userGroup !== 'HeadOffice' && (
+                          <p className="text-sm text-gray-500 italic">
+                            สูตรการผลิตเป็นความลับทางธุรกิจ
+                          </p>
+                        )}
                       </div>
                       <div className="text-right">
                         <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
@@ -711,14 +733,14 @@ export default function ProductsPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="mt-3 flex space-x-2">
-                      <button
-                        onClick={() => handleOpenRecipeModal(selectedProduct.id, true)}
-                        className="text-sm text-green-600 hover:text-green-800 underline"
-                      >
-                        ดูรายละเอียดสูตร
-                      </button>
-                      {session?.user.userGroup === 'HeadOffice' && (
+                    {session?.user.userGroup === 'HeadOffice' && (
+                      <div className="mt-3 flex space-x-2">
+                        <button
+                          onClick={() => handleOpenRecipeModal(selectedProduct.id, true)}
+                          className="text-sm text-green-600 hover:text-green-800 underline"
+                        >
+                          ดูรายละเอียดสูตร
+                        </button>
                         <button
                           onClick={() => {
                             setRecipeProductId(selectedProduct.id)
@@ -728,29 +750,27 @@ export default function ProductsPage() {
                         >
                           แก้ไขสูตร
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {!selectedProduct.recipe && (
+              {!selectedProduct.recipe && session?.user.userGroup === 'HeadOffice' && (
                 <div>
                   <h4 className="text-md font-medium text-gray-900 mb-3">สูตรการผลิต</h4>
                   <div className="bg-gray-50 p-4 rounded-md text-center">
                     <ChefHat className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                     <p className="text-gray-500 mb-3">ยังไม่มีสูตรการผลิตสำหรับสินค้านี้</p>
-                    {session?.user.userGroup === 'HeadOffice' && (
-                      <button
-                        onClick={() => {
-                          setRecipeProductId(selectedProduct.id)
-                          setShowRecipeModal(true)
-                        }}
-                        className="text-sm text-blue-600 hover:text-blue-800 underline"
-                      >
-                        เพิ่มสูตรการผลิต
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        setRecipeProductId(selectedProduct.id)
+                        setShowRecipeModal(true)
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 underline"
+                    >
+                      เพิ่มสูตรการผลิต
+                    </button>
                   </div>
                 </div>
               )}

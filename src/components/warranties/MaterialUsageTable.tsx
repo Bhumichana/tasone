@@ -47,9 +47,6 @@ export default function MaterialUsageTable({
                 Batch Allocation (FIFO)
               </th>
               <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
-                ต่อ 1 ตร.ม.
-              </th>
-              <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                 ปริมาณรวม
               </th>
               <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">
@@ -100,9 +97,6 @@ export default function MaterialUsageTable({
                   ) : (
                     <span className="text-xs text-gray-400">-</span>
                   )}
-                </td>
-                <td className="px-3 py-2 text-right text-sm text-gray-900">
-                  {item.quantityPerUnit.toFixed(3)} {item.unit}
                 </td>
                 <td className="px-3 py-2 text-right">
                   <span className="text-sm font-semibold text-gray-900">
