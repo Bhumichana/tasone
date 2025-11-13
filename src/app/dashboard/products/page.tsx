@@ -703,7 +703,7 @@ export default function ProductsPage() {
                         )}
                         {session?.user.userGroup !== 'HeadOffice' && (
                           <p className="text-sm text-gray-500 italic">
-                            สูตรการผลิตเป็นความลับทางธุรกิจ
+                            สินค้านี้มีสูตรการใช้วัตถุดิบ
                           </p>
                         )}
                       </div>

@@ -293,7 +293,7 @@ export default function RecipeDetailModal({
             ) : (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
                 <Package className="h-12 w-12 text-yellow-600 mx-auto mb-3" />
-                <h4 className="text-md font-semibold text-gray-900 mb-2">สูตรการผลิตเป็นความลับทางธุรกิจ</h4>
+                <h4 className="text-md font-semibold text-gray-900 mb-2">สินค้านี้มีสูตรการใช้วัตถุดิบ</h4>
                 <p className="text-sm text-gray-600">
                   เฉพาะ HeadOffice เท่านั้นที่สามารถดูรายละเอียดสูตร BOM ได้
                 </p>
