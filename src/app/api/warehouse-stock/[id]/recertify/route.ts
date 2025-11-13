@@ -76,7 +76,7 @@ export async function POST(
     const newExpiryDate = new Date(oldExpiryDate)
     newExpiryDate.setDate(newExpiryDate.getDate() + 60)
 
-    // อัปเดต RawMaterialBatch
+    // อัปเดต RawMaterialBatch และสร้าง RecertificationHistory
     const updatedBatch = await prisma.rawMaterialBatch.update({
       where: { id },
       data: {
@@ -89,6 +89,19 @@ export async function POST(
         recertificationCount: { increment: 1 },
         lastRecertifiedAt: new Date(),
         lastRecertifiedBy: session.user.username || session.user.email || 'Unknown',
+
+        // สร้าง RecertificationHistory record
+        recertificationHistory: {
+          create: {
+            oldExpiryDate: oldExpiryDate,
+            newExpiryDate: newExpiryDate,
+            extendedDays: 60,
+            recertifiedBy: session.user.username || session.user.email || 'Unknown',
+            recertifiedByName: `${session.user.firstName} ${session.user.lastName}` || session.user.username || 'Unknown',
+            reason: null,
+            note: null
+          }
+        },
 
         // อัปเดตเวลาที่แก้ไขล่าสุด
         updatedAt: new Date()
