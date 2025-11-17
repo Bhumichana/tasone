@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DealerCombobox } from '@/components/ui/dealer-combobox'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -342,33 +343,29 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label htmlFor="dealerId" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="dealerId" className="block text-sm font-medium text-gray-700 mb-1">
                   ตัวแทนจำหน่ายต้นสังกัด <span className="text-red-500">*</span>
                 </label>
-                <select
-                  id="dealerId"
-                  name="dealerId"
-                  required
-                  value={formData.dealerId}
-                  onChange={handleChange}
-                  disabled={dealersLoading}
-                  className={cn(
+                {dealersLoading ? (
+                  <div className={cn(
                     "mt-1 appearance-none relative block w-full px-3 py-2",
-                    "border-2 border-navy-900 placeholder-gray-500 text-gray-900",
-                    "rounded-md focus:outline-none focus:ring-navy-500 focus:border-navy-500",
-                    "focus:z-10 sm:text-sm",
-                    dealersLoading && "opacity-50 cursor-not-allowed"
-                  )}
-                >
-                  <option value="">
-                    {dealersLoading ? 'กำลังโหลดข้อมูลตัวแทนจำหน่าย...' : 'เลือกตัวแทนจำหน่ายต้นสังกัด'}
-                  </option>
-                  {!dealersLoading && dealers.map((dealer: any) => (
-                    <option key={dealer.id} value={dealer.id}>
-                      {dealer.dealerName} ({dealer.dealerCode})
-                    </option>
-                  ))}
-                </select>
+                    "border-2 border-navy-900 bg-gray-50 text-gray-500",
+                    "rounded-md sm:text-sm"
+                  )}>
+                    กำลังโหลดข้อมูลตัวแทนจำหน่าย...
+                  </div>
+                ) : (
+                  <DealerCombobox
+                    dealers={dealers}
+                    value={formData.dealerId}
+                    onChange={(value) => setFormData({ ...formData, dealerId: value })}
+                    placeholder="เลือกตัวแทนจำหน่ายต้นสังกัด"
+                    emptyText="ไม่พบตัวแทนจำหน่าย"
+                    className={cn(
+                      "border-2 border-navy-900 focus:ring-navy-500 focus:border-navy-500"
+                    )}
+                  />
+                )}
               </div>
             </div>
 
